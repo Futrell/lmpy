@@ -1,4 +1,4 @@
-honfrom numpy import *
+from numpy import *
 
 def pos(x):
     return maximum(x,0)

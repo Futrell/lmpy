@@ -1,6 +1,7 @@
 class DistribSim:
-    def __init__(self, ctxList, vocab, weight=None):
-        from numpy import *
+    from numpy import *
+
+    def __init__(self, ctxList, weight=None):
         self.ctxList = ctxList
         self.weight = weight
         if self.weight == None:
@@ -17,7 +18,8 @@ class DistribSim:
         v = array(v)
         return sqrt(dot(v,v.conj()))
     
-    def getContextMatrix (self, vocab=[], ctxList):
+    def getContextMatrix (self, vocab=[], ctxList=None):
+        if ctxList == None: ctxList = self.ctxList
         m = array([ctxList.getVector(word) for word in vocab])
         return m
     
@@ -29,6 +31,7 @@ class DistribSim:
         if weight == None:
             weight = self.weight
 
+        m = self.normalize(m)
         m = weight(self.getContextMatrix(vocab, ctxList))
         m = dot(m,m.transpose())
         for i, row in enumerate(m):

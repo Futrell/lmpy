@@ -280,7 +280,7 @@ class ContextList:
         print "Loaded columns"
 
         self.contextCount = dict()
-        matFile = gzip.open(filename+'_mat','r')
+        matFile = gzip.open(filename+'_mat.gz','r')
         for (lineNum,line) in enumerate(matFile):
             vector = [int(v) for v in line.strip().split(" ")]
             for (j,v) in enumerate(self.vocab):

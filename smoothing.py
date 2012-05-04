@@ -79,6 +79,7 @@ class AdditiveSmoothing(Smoothing):
     def count(self, counts, word):
         return counts[word] + self.k
 
+
 class SimilaritySmoothing(Smoothing):
     """Implements similarity-based smoothing based on the formula
     in Erk, Pado & Pado (2010). Requires either a similarity
@@ -114,20 +115,10 @@ class SimilaritySmoothing(Smoothing):
     def makeMatrix(self, sim):
         return sim.getSimilarityMatrix(self.vocab)
 
-    def prob(self, word, context):
-        if type(context) is not tuple: 
+    def probdist(self, context):
+        if type(context) is not tuple:
             context = tuple(context)
 
-        localCounts = []
-        for w in self.vocab:
-            if context in self.counts:
-                localCounts.append(self.counts[context][w])
-            else:
-                localCounts.append(0)
-        adjustedCounts = dot(localCounts,self.mat)
-        adjustedCounts = dict(zip(self.vocab,adjustedCounts))
+        distribution = self.localCounts(context)
+        return self.normalize(dot(distribution,self.mat))
 
-        num = self.c(adjustedCounts, word)
-        denom = self.normalizer(adjustedCounts)
-        return log2(num) - log2(denom)
-        
