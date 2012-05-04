@@ -1,7 +1,6 @@
-from smoothing import AdditiveSmoothing
-s = AdditiveSmoothing()
+from smoothing import *
 from lm import LanguageModel
-l = LanguageModel(order=2)
+l = LanguageModel(order=3)
 l.addText("The unpurged images of day recede;")
 l.addText("The Emperor's drunken soldiery are abed;")
 l.addText("Night resonance recedes, night-walkers' song")

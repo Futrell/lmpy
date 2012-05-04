@@ -9,6 +9,7 @@ class Smoothing:
             self.params[key] = kwargs[key]
         self.setDefaultParams()
         self.vocab = []
+        self.OOV = '!OOV!'
         self.updateVocab()
 
     def setDefaultParams(self, **kwargs):
@@ -21,27 +22,51 @@ class Smoothing:
     def updateVocab(self):
         if () in self.counts:
             self.vocab = self.counts[()].keys()
+        if self.OOV not in self.vocab:
+            self.vocab.append(self.OOV)
 
     def prob(self, word, context):
         if type(context) is not tuple: 
             context = tuple(context)
-        
+
+        if word not in self.vocab:
+            return self.prob(self.OOV, context)
+
+        d = self.probdist(context)
+        return d[self.vocab.index(word)]
+
+
+    def probdist(self, context):
+        if type(context) is not tuple:
+            context = tuple(context)
+
+        return self.normalize(self.localCounts(context))
+
+    def localCounts(self, context):
+        if type(context) is not tuple:
+            context = tuple(context)
+
         if context in self.counts:
-            num = self.numerator(self.counts[context], word)
-            denom = self.normalizer(self.counts[context])
+            localCounts = self.counts[context]
         else:
-            num = self.numerator(Counter(),word)
-            denom = self.normalizer(Counter())
+            localCounts = Counter()
 
-        if denom == 0:
-            return log2(0)
-        return log2(num) - log2(denom)
+        distribution = array([self.count(localCounts,w) for w in self.vocab])
+        return distribution
 
-    def numerator(self, counts, word):
+    def count(self, counts, word):
         return counts[word]
 
-    def normalizer(self, counts):
-        return sum([self.numerator(counts, x) for x in self.vocab])
+    def normalize(self, distribution):
+        normalizer = sum(distribution)
+        if normalizer == 0:
+            return log2(distribution)
+        else:
+            return log2(distribution) - log2(normalizer)
+
+class MLE(Smoothing):
+    def placeholder(self):
+        pass
 
 class AdditiveSmoothing(Smoothing):
     """Implements add-k smoothing, taking keyword parameter k."""
@@ -51,9 +76,8 @@ class AdditiveSmoothing(Smoothing):
             self.k = 1
         else: self.k = self.params['k']
 
-    def numerator(self, counts, word):
+    def count(self, counts, word):
         return counts[word] + self.k
-
 
 class SimilaritySmoothing(Smoothing):
     """Implements similarity-based smoothing based on the formula
@@ -103,7 +127,7 @@ class SimilaritySmoothing(Smoothing):
         adjustedCounts = dot(localCounts,self.mat)
         adjustedCounts = dict(zip(self.vocab,adjustedCounts))
 
-        num = self.numerator(adjustedCounts, word)
+        num = self.c(adjustedCounts, word)
         denom = self.normalizer(adjustedCounts)
         return log2(num) - log2(denom)
         

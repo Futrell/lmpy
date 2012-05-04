@@ -13,33 +13,42 @@ class LanguageModel:
         self.tk = Tokenizer()
         self.Starter = '<S>'
         self.Ender = '</S>'
-        self.smoothing = smoothing
+        if smoothing==None:
+            from smoothing import MLE
+            self.smoothing = MLE()
 
     def generate(self, num=1, smoothing=None):
-        return [self.generateString(smoothing) for i in xrange(num)]
+        if smoothing == None:
+            smoothing = self.smoothing #MLE() by default
+        smoothing.updateCounts(self.counts)
+        return [self.generateString(smoothing) for _ in xrange(num)]
 
     def generateString(self, smoothing=None):
         import random
         from scipy.stats import rv_discrete
         
+        if smoothing == None:
+            smoothing = self.smoothing #MLE() by default
         generated = ''
         random.seed()
         context = tuple(self.Starter for i in xrange(self.order-1))
         vocab = list(self.counts[()].keys())
         while True:            
-            words = [tuple(range(len(vocab))),tuple(2**self.p(w,context,smoothing) for w in vocab)]
+            words = [tuple(range(len(vocab))),
+                     tuple(2**smoothing.probdist(context))]
             distribution = rv_discrete(name='words',values=words)
             word = vocab[distribution.rvs()]
             if word == self.Ender or word == self.Starter: break
 
             generated += word + ' '
+            #print word,
             context = list(context)
             context.append(word)
             context = tuple(context[1:])
 
         return generated.strip()
 
-    def ppl(self, text, smoothing=None, boundariesCount=False):
+    def ppl(self, text, smoothing=None, boundariesCount=False, verbose=False):
         perplexity = 0.0
         if type(text) == str:
             text = self.tk.tokenize(text)
@@ -52,9 +61,9 @@ class LanguageModel:
             while self.Starter in context:
                 context.remove(self.Starter)
 
-            print 'word:',word
-            print 'context:',context
-            print 'p:',self.p(word, context, smoothing)
+            if verbose:
+                print 'p(',word,'|',context,') =',
+                print  self.p(word, context, smoothing)
             perplexity += self.p(word, context, smoothing)
 
         return perplexity
@@ -62,32 +71,13 @@ class LanguageModel:
     def p(self, word, context=tuple(), smoothing=None, **kwargs):
         if smoothing == None:
             smoothing = self.smoothing
-        else:
-            smoothing.updateCounts(self.counts)
+        smoothing.updateCounts(self.counts)
 
         if type(context) == str:
             context = self.tk.tokenize(context)
         context = context[-(self.order-1):]
 
-        if smoothing == None:
-            return self.mle(word, context)
-        else:
-            return smoothing.prob(word, context)
-
-    def mle(self, word, context=tuple()):
-        if type(context) == str:
-            context = self.tk.tokenize(context)
-        context = tuple(context)
-        if context in self.counts:
-            count = self.counts[context][word]
-            return self.MLEnormalize(count,context)
-        else:
-            return numpy.log2(0)
-
-    def MLEnormalize(self, count, context):
-        allCounts = [self.counts[context][word] for word in self.counts[()]]
-        denominator = sum(allCounts)
-        return numpy.log2(count) - numpy.log2(denominator)
+        return smoothing.prob(word, context)
 
     def addText(self, text, order=0):
         if order == 0: order = self.order
@@ -118,7 +108,8 @@ class LanguageModel:
         word = text[-1:][0]
         if context not in self.counts:
             self.counts[context] = Counter()
-        self.counts[context][word] += 1
+        if word is not self.Starter:
+            self.counts[context][word] += 1
         #print "Added gram:",context,":",word
         
     def addTextFile(self, infile, order=0):        
