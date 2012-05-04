@@ -14,7 +14,6 @@ class LanguageModel:
         self.Starter = '<S>'
         self.Ender = '</S>'
         self.smoothing = smoothing
-        
 
     def generate(self, num=1, smoothing=None):
         return [self.generateString(smoothing) for i in xrange(num)]
@@ -40,24 +39,24 @@ class LanguageModel:
 
         return generated.strip()
 
-    def ppl(self, text, smoothing=None):
+    def ppl(self, text, smoothing=None, boundariesCount=False):
         perplexity = 0.0
         if type(text) == str:
             text = self.tk.tokenize(text)
         text = self.addDelimiters(text)
         for i in xrange(self.order-1,len(text)):
-            #print text[i],
-            #print text[(i-(self.order-1)):i],
-            #print self.p(text[i],text[(i-(self.order-1)):i])
             word = text[i]
-            if word == self.Ender: return perplexity
-
+            if word == self.Ender: break
+            
             context = text[(i-(self.order-1)):i]
-            if self.Starter in context:
+            while self.Starter in context:
                 context.remove(self.Starter)
 
+            print 'word:',word
+            print 'context:',context
+            print 'p:',self.p(word, context, smoothing)
             perplexity += self.p(word, context, smoothing)
-            i += 1
+
         return perplexity
         
     def p(self, word, context=tuple(), smoothing=None, **kwargs):
@@ -95,8 +94,9 @@ class LanguageModel:
         if type(text) == str:
             text = self.tk.tokenize(text)
         text = self.addDelimiters(text,order)
-        for i in xrange(len(text)):
-            self.addGrams(text[i:i+order])
+        for o in xrange(1,order+1):
+            for i in xrange(len(text)-(o-1)):
+                self.addGram(text[i:i+o])
         if self.smoothing is not None:
             self.smoothing.updateCounts(self.counts)
 
@@ -111,7 +111,7 @@ class LanguageModel:
             text.append(self.Ender)
         return text
 
-    def addGrams(self, text):
+    def addGram(self, text):
         if text == []:
             return
         context = tuple(text[:-1])
@@ -119,12 +119,10 @@ class LanguageModel:
         if context not in self.counts:
             self.counts[context] = Counter()
         self.counts[context][word] += 1
-        self.addGrams(text[1:])
+        #print "Added gram:",context,":",word
         
-    def addTextFile(self, infile, order=0):
-        
+    def addTextFile(self, infile, order=0):        
         if type(infile) == str:
             infile = open(infile,'r')
-
-        
-            
+        for line in infile:
+            self.addText(line.strip())
