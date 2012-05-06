@@ -13,15 +13,16 @@ class LanguageModel:
         self.tk = Tokenizer()
         self.Starter = '<S>'
         self.Ender = '</S>'
+        self.OOV = '!OOV!'
         if smoothing==None:
             from smoothing import MLE
             self.smoothing = MLE()
 
-    def generate(self, num=1, smoothing=None):
+    def generate(self, n=1, smoothing=None):
         if smoothing == None:
             smoothing = self.smoothing #MLE() by default
         smoothing.updateCounts(self.counts)
-        return [self.generateString(smoothing) for _ in xrange(num)]
+        return [self.generateString(smoothing) for _ in xrange(n)]
 
     def generateString(self, smoothing=None):
         import random
@@ -33,9 +34,12 @@ class LanguageModel:
         random.seed()
         context = tuple(self.Starter for i in xrange(self.order-1))
         vocab = list(self.counts[()].keys())
-        while True:            
+        while True:
+            distribution = 2**smoothing.probdist(context)
+            print distribution
+            if sum(distribution) == 0: break
             words = [tuple(range(len(vocab))),
-                     tuple(2**smoothing.probdist(context))]
+                     tuple(distribution)]
             distribution = rv_discrete(name='words',values=words)
             word = vocab[distribution.rvs()]
             if word == self.Ender or word == self.Starter: break
@@ -117,3 +121,9 @@ class LanguageModel:
             infile = open(infile,'r')
         for line in infile:
             self.addText(line.strip())
+    
+    def getVocab(self):
+        vocab = self.counts[()].keys()
+        if self.OOV not in vocab:
+            vocab.append(self.OOV)
+        return vocab

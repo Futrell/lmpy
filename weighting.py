@@ -1,7 +1,7 @@
 from numpy import *
 
-def pos(x):
-    return maximum(x,0)
+def pos(f):
+    return lambda x : maximum(0,f(x))
 
 def pmi(x):
     Pwf, Pf, Pw = getProbs(x)

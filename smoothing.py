@@ -12,7 +12,7 @@ class Smoothing:
         self.OOV = '!OOV!'
         self.updateVocab()
 
-    def setDefaultParams(self, **kwargs):
+    def setDefaultParams(self):
         pass
 
     def updateCounts(self, counts): 
@@ -73,11 +73,10 @@ class AdditiveSmoothing(Smoothing):
 
     def setDefaultParams(self):
         if 'k' not in self.params:
-            self.k = 1
-        else: self.k = self.params['k']
+            self.params['k'] = 1
 
     def count(self, counts, word):
-        return counts[word] + self.k
+        return counts[word] + self.params['k']
 
 
 class SimilaritySmoothing(Smoothing):
@@ -88,37 +87,32 @@ class SimilaritySmoothing(Smoothing):
     1 should represent maximal similarity. """
 
     def setDefaultParams(self):
-        if 'mat' in self.params:
-            self.mat = self.params['mat']
-            del self.params['mat']
+        if 'mat' not in self.params:
             if 'sim' in self.params:
-                del self.params['sim']
-
-        elif 'sim' in self.params:
-            sim = self.params['sim']
-            self.mat = self.makeMatrix(sim)
-            del self.params['sim']
-
-        else:
-            print "I need a similarity matrix or a similarity object!"
-            self.mat = array([[]])
+                self.params['mat'] = self.makeMatrix(self.params['sim'])
+            else:
+                print "I need a similarity matrix or a similarity object!"
+                self.params['mat'] = array([[]])
             #ABORT
-
-        #self.normalizeMatrix()
-    
-    def normalizeMatrix(self):
-        """ Row-normalize the internal similarity matrix so the
-        highest value is 1. """
-        rowMax = self.mat.max(axis=1)
-        self.mat /= rowMax[:,numpy.newaxis]
 
     def makeMatrix(self, sim):
         return sim.getSimilarityMatrix(self.vocab)
 
-    def probdist(self, context):
+    def localCounts(self, context):
         if type(context) is not tuple:
             context = tuple(context)
 
-        distribution = self.localCounts(context)
-        return self.normalize(dot(distribution,self.mat))
+        if context in self.counts:
+            localCounts = self.counts[context]
+        else:
+            localCounts = Counter()
 
+        distribution = array([self.count(localCounts,w) for w in self.vocab])
+        return dot(distribution,self.params['mat'])
+
+
+class BackoffSmoothing(Smoothing):
+    def setDefaultParams(self):
+        if 'k' not in self.params:
+            self.k = 1
+        else: self.k = self.params['k']
