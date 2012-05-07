@@ -46,3 +46,49 @@ class DistribSim:
             if sum(row) == 0:
                 row[i] = 1
         return m
+
+class WordnetSim:
+    from nltk.corpus import wordnet as wn
+    from numpy import array
+
+    def __init__(self, vocab, method=None):
+        if self.weight == None:
+            self.weight = self.nullWeight
+        self.vocab = vocab
+        if self.method == None:
+            self.method = wn.path_similarity
+
+    def similarity(self, w1, w2, method=None):
+        if method==None: method = self.method
+        sims = []
+        for s1 in wn.synsets(w1):
+            for s2 in wn.synsets(w2):
+                sims.append(method(s1,s2))
+        return min(sims)
+
+    def getSimilarityMatrix(self, vocab=[],method=None):
+        if vocab==[]: vocab = self.vocab
+        if method==None: method = self.method
+
+        m = array([
+                [self.similarity(w1,w2,method) for w1 in vocab] 
+                for w2 in vocab])
+        
+        m = self.normalize(m)
+        for i, row in enumerate(m):
+            if sum(row) == 0:
+                row[i] = 1
+        return m
+
+    def normalize(self, m):
+        norms = array([self.norm(v) for v in m])
+        return m / norms[:,newaxis]
+
+    def norm(self, v):
+        v = array(v)
+        n = max(v)
+        if n == 0:
+            return 1.
+        else: return float(n)
+        
+    
