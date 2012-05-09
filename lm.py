@@ -52,8 +52,8 @@ class LanguageModel:
 
         return ' '.join(generated)
 
-    def ppl(self, text, smoothing=None, boundariesCount=False, verbose=False):
-        perplexity = 0.0
+    def prob(self, text, smoothing=None, boundariesCount=False, verbose=False):
+        prob = 0.0
         if type(text) == str:
             text = self.tk.tokenize(text)
         text = self.addDelimiters(text)
@@ -68,9 +68,9 @@ class LanguageModel:
             if verbose:
                 print 'p(',word,'|',context,') =',
                 print  self.p(word, context, smoothing)
-            perplexity += self.p(word, context, smoothing)
+            prob += self.p(word, context, smoothing)
 
-        return perplexity
+        return prob
         
     def p(self, word, context=tuple(), smoothing=None, **kwargs):
         if smoothing == None:
