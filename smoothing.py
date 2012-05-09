@@ -87,16 +87,8 @@ class SimilaritySmoothing(Smoothing):
     1 should represent maximal similarity. """
 
     def setDefaultParams(self):
-        if 'mat' not in self.params:
-            if 'sim' in self.params:
-                self.params['mat'] = self.makeMatrix(self.params['sim'])
-            else:
-                print "I need a similarity matrix or a similarity object!"
-                self.params['mat'] = array([[]])
-            #ABORT
-
-    def makeMatrix(self, sim):
-        return sim.getSimilarityMatrix(self.vocab)
+        if 'sim' not in self.params:
+            print "I need a similarity matrix or a similarity object!"
 
     def localCounts(self, context):
         if type(context) is not tuple:
@@ -108,7 +100,7 @@ class SimilaritySmoothing(Smoothing):
             localCounts = Counter()
 
         distribution = array([self.count(localCounts,w) for w in self.vocab])
-        return dot(distribution,self.params['mat'])
+        return dot(distribution,self.params['sim'].matrix)
 
 
 class BackoffSmoothing(Smoothing):
