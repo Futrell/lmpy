@@ -51,10 +51,10 @@ class Smoothing:
         else:
             localCounts = Counter()
 
-        distribution = array([self.count(localCounts,w) for w in self.vocab])
+        distribution = array([self.count(localCounts,w,context) for w in self.vocab])
         return distribution
 
-    def count(self, counts, word):
+    def count(self, counts, word, context=()):
         return counts[word]
 
     def normalize(self, distribution):
@@ -75,7 +75,7 @@ class AdditiveSmoothing(Smoothing):
         if 'k' not in self.params:
             self.params['k'] = 1
 
-    def count(self, counts, word):
+    def count(self, counts, word, context=()):
         return counts[word] + self.params['k']
 
 
@@ -111,8 +111,14 @@ class SimilaritySmoothing(Smoothing):
         return dot(distribution,self.params['mat'])
 
 
-class BackoffSmoothing(Smoothing):
-    def setDefaultParams(self):
-        if 'k' not in self.params:
-            self.k = 1
-        else: self.k = self.params['k']
+class KneserNeySmoothing(Smoothing): # doesn't seem to work yet
+    
+    def count(self, counts, word, context=()):
+        if context==():
+            return self.continuationCount(word)
+        else: return counts[word]
+
+    def continuationCount(self, word):
+        c = Counter([ctx for ctx in self.counts if (len(ctx)==1 and self.counts[ctx][word]>1)])
+        return len(c)
+                

@@ -30,7 +30,7 @@ class LanguageModel:
         
         if smoothing == None:
             smoothing = self.smoothing #MLE() by default
-        generated = ''
+        generated = []
         random.seed()
         context = tuple(self.Starter for i in xrange(self.order-1))
         vocab = list(self.counts[()].keys())
@@ -44,13 +44,13 @@ class LanguageModel:
             word = vocab[distribution.rvs()]
             if word == self.Ender or word == self.Starter: break
 
-            generated += word + ' '
+            generated.append(word)
             #print word,
             context = list(context)
             context.append(word)
             context = tuple(context[1:])
 
-        return generated.strip()
+        return ' '.join(generated)
 
     def prob(self, text, smoothing=None, boundariesCount=False, verbose=False):
         prob = 0.0
