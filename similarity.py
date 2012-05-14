@@ -12,31 +12,27 @@ class DistribSim:
         if self.weight == None:
             self.weight = self.nullWeight
         self.vocab = vocab
-        self.matrix = self.getSimilarityMatrix()
+        self.matrix = self.getSimilarityMatrix(vocab=vocab)
 
     def nullWeight(self, x):
         return x
 
     def normalize(self, m):
-        norms = array([self.norm(v) for v in m])
-        return m / norms[:,newaxis]
+        smallNum = 0.0000000001 # hack to deal with div by 0
+        norms = maximum(sqrt(dot(m,m.transpose())).diagonal(),smallNum)
+        return m / norms[:,newaxis] # convert to diagonals
 
-    def norm(self, v):
-        v = array(v)
-        n = sqrt(dot(v,v.conj()))
-        if n == 0:
-            return 1
-        else: return n
-    
     def getContextMatrix (self, vocab=[], ctxList=None):
         if ctxList == None: ctxList = self.ctxList
         if vocab==[]: vocab = self.vocab
         m = array([ctxList.getVector(word) for word in vocab])
         return m
     
-    def getSimilarityMatrix(self, vocab=[], ctxList = None, weight = None):
+    def getSimilarityMatrix(self, vocab=None, ctxList = None, weight = None):
+        if (vocab==None and ctxList==None and weight==None): 
+            return self.matrix
         if ctxList == None: ctxList = self.ctxList
-        if vocab == []: vocab = self.vocab
+        if vocab == None: vocab = self.vocab
         if weight == None: weight = self.weight
 
         m = weight(self.getContextMatrix(vocab, ctxList))

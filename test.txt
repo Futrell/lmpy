@@ -66,10 +66,15 @@ l.addText("And fastened to a dying animal")
 l.addText("It knows not what it is; and gather me")
 l.addText("Into the artifice of eternity.")
 l.addText("Once out of nature I shall never take")
-l.addText("My bodily form from any natural thing,")
+l.addText(" bodily form from any natural thing,")
 l.addText("But such a form as Grecian goldsmiths make")
 l.addText("Of hammered gold and gold enameling")
 l.addText("To keep a drowsy Emperor awake;")
 l.addText("Or set upon a golden bough to sing")
 l.addText("To lords and ladies of Byzantium")
 l.addText("Of what is past, or passing, or to come.")
+from similarity import *
+from smoothing import *
+import cPickle
+ds = DistribSim(l.getVocab(),cPickle.load(open('ctx')))
+l.generate(1,SimilaritySmoothing(sim=ds))

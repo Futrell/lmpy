@@ -36,7 +36,7 @@ class LanguageModel:
         vocab = list(self.counts[()].keys())
         while True:
             distribution = 2**smoothing.probdist(context)
-            print distribution
+            #print distribution
             if sum(distribution) == 0: break
             words = [tuple(range(len(vocab))),
                      tuple(distribution)]

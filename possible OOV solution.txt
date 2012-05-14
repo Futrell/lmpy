@@ -1,0 +1,12 @@
+context interpolation is for estimating prob of OOV words
+Useful for prob(), not for generate().
+
+p*(w|ctx) = §sim(i,w)p(i|ctx)
+
+Instead of w use w' which is w + current context.
+Can this be vectorized?
+
+p* = dot(p,S)
+p* = dot(p,S+ctx)
+
+

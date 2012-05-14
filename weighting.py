@@ -5,7 +5,7 @@ def pos(f):
 
 def pmi(x):
     Pwf, Pf, Pw = getProbs(x)
-    return log2(Pwf / (Pw * Pf))
+    return log2(Pwf) - log2(Pw * Pf)
 
 def ttest(x):
     Pwf, Pf, Pw = getProbs(x)
