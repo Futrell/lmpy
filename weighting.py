@@ -1,19 +1,31 @@
 from numpy import *
+import scipy.sparse as sps
 
 def pos(f):
-    return lambda x : maximum(0,f(x))
+    return lambda x: sps.csr_matrix(maximum(0,f(x).todense()))
 
 def pmi(x):
-    Pwf, Pf, Pw = getProbs(x)
-    return log2(Pwf) - log2(Pw * Pf)
+    PwfObserved, PwfExpected = getProbs(x) 
+    PwfObserved.data[:] = log2(PwfObserved.data) #let log2(0) = 0
+    PwfExpected.data[:] = log2(PwfExpected.data)
+    return PwfObserved - PwfExpected
 
 def ttest(x):
-    Pwf, Pf, Pw = getProbs(x)
-    return (Pwf - (Pf*Pw))/sqrt(Pf*Pw)
+    PwfObserved, PwfExpected = getProbs(x)
+    numerator = (PwfObserved - PwfExpected)
+    denominator = PwfExpected 
+    denominator.data[:] = sqrt(denominator.data)
+    return numerator/denominator # elementwise /
 
 def getProbs(x):
     x = x.astype(float)
+    if not sps.issparse(x):
+        x = sps.csr_matrix(x)
     Pwf = x / x.sum() #P(w,f)
-    Pf = x / x.sum(0) #divide features by row sums
-    Pw = (x.transpose() / x.sum(1)).transpose() #div words by col sums
-    return Pwf, Pf, Pw
+
+    Pw = x.sum(1)
+    Pw /= Pw.sum(0)
+
+    Pf = x.sum(0)
+    Pf /= Pf.sum(1)
+    return Pwf, sps.csr_matrix(Pw * Pf)

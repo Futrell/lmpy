@@ -43,7 +43,7 @@ l.addText("Fresh images beget,")
 l.addText("That dolphin-torn, that gong-tormented sea.")
 l.addText("That is no country for old men. The young")
 l.addText("In one another's arms, birds in the trees")
-l.addText("--Those dying generations -- at their song,")
+l.addText("— Those dying generations — at their song,")
 l.addText("The salmon-falls, the mackerel-crowded seas,")
 l.addText("Fish, flesh, or fowl, commend all summer long")
 l.addText("Whatever is begotten, born, and dies.")
@@ -73,8 +73,8 @@ l.addText("To keep a drowsy Emperor awake;")
 l.addText("Or set upon a golden bough to sing")
 l.addText("To lords and ladies of Byzantium")
 l.addText("Of what is past, or passing, or to come.")
-from similarity import *
-from smoothing import *
+from similarity import DistribSim
+from weighting import *
 import cPickle
-ds = DistribSim(l.getVocab(),cPickle.load(open('ctx')))
+ds = DistribSim(l.getVocab(),cPickle.load(open('ctx')),pos(ttest))
 l.generate(1,SimilaritySmoothing(sim=ds))

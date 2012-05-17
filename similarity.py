@@ -1,4 +1,7 @@
 from numpy import *
+import scipy.spatial.distance as spd
+import scipy.sparse as sps
+import sklearn.preprocessing as sklpp
 
 class DistribSim:
     # Usage example:
@@ -17,16 +20,11 @@ class DistribSim:
     def nullWeight(self, x):
         return x
 
-    def normalize(self, m):
-        smallNum = 0.0000000001 # hack to deal with div by 0
-        norms = maximum(sqrt(dot(m,m.transpose())).diagonal(),smallNum)
-        return m / norms[:,newaxis] # convert to diagonals
-
     def getContextMatrix (self, vocab=[], ctxList=None):
         if ctxList == None: ctxList = self.ctxList
         if vocab==[]: vocab = self.vocab
         m = array([ctxList.getVector(word) for word in vocab])
-        return m
+        return sps.csr_matrix(m) # sparse row matrix
     
     def getSimilarityMatrix(self, vocab=None, ctxList = None, weight = None):
         if (vocab==None and ctxList==None and weight==None): 
@@ -35,13 +33,11 @@ class DistribSim:
         if vocab == None: vocab = self.vocab
         if weight == None: weight = self.weight
 
-        m = weight(self.getContextMatrix(vocab, ctxList))
-        m = self.normalize(m)
-        m = dot(m,m.transpose())
-        for i, row in enumerate(m):
-            if sum(row) == 0:
-                row[i] = 1
-        return m
+        m = sps.csr_matrix(weight(self.getContextMatrix(vocab, ctxList)))
+        sklpp.normalize(m,copy=False)
+        m = sps.dia_matrix(dot(m,m.transpose())) # pairwise cosine similarities
+        m.data[m.offsets.tolist().index(0),:] = 1 # deal with OOV sims
+        return array(m.todense())
 
 class WordnetSim:
     from nltk.corpus import wordnet as wn
@@ -54,7 +50,6 @@ class WordnetSim:
         if self.method == None:
             self.method = wn.path_similarity
 
-    def similarity(self, w1, w2, method=None):
         if method==None: method = self.method
         sims = []
         for s1 in wn.synsets(w1):

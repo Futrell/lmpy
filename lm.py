@@ -18,13 +18,13 @@ class LanguageModel:
             from smoothing import MLE
             self.smoothing = MLE()
 
-    def generate(self, n=1, smoothing=None):
+    def generate(self, starter='', n=1, smoothing=None):
         if smoothing == None:
             smoothing = self.smoothing #MLE() by default
         smoothing.updateCounts(self.counts)
-        return [self.generateString(smoothing) for _ in xrange(n)]
+        return [self.generateString(starter, smoothing) for _ in xrange(n)]
 
-    def generateString(self, smoothing=None):
+    def generateString(self, starter='', smoothing=None):
         import random
         from scipy.stats import rv_discrete
         
