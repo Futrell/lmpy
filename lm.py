@@ -1,6 +1,8 @@
 from tok import Tokenizer
 from collections import Counter
 import numpy
+import random
+from scipy.stats import rv_discrete
 
 class LanguageModel:
     def __init__(self, order=3, smoothing=None):
@@ -18,39 +20,48 @@ class LanguageModel:
             from smoothing import MLE
             self.smoothing = MLE()
 
-    def generate(self, starter='', n=1, smoothing=None):
+    def generateString(self, context='',smoothing=None):
+        return ' '.join(self.generate(context,smoothing))
+
+    def generateStrings(self, n, context='', smoothing=None):
+        return [self.generateString(context,smoothing) for _ in xrange(n)]
+        
+    def generate(self, context='', smoothing=None):
         if smoothing == None:
             smoothing = self.smoothing #MLE() by default
         smoothing.updateCounts(self.counts)
-        return [self.generateString(starter, smoothing) for _ in xrange(n)]
+        return [w for w in self.generateWords(context, smoothing)]
 
-    def generateString(self, starter='', smoothing=None):
-        import random
-        from scipy.stats import rv_discrete
-        
+    def generateWords(self, context=[], smoothing=None):
         if smoothing == None:
             smoothing = self.smoothing #MLE() by default
-        generated = ''
+        if type(context)==str:
+            context = self.tk.tokenize(context)
+        generated = [self.Starter for i in xrange(self.order-1)]
+        if not context == []: 
+            if type(context)==str:
+                context = self.tk.tokenize(context)
+            generated.append(context)
         random.seed()
-        context = tuple(self.Starter for i in xrange(self.order-1))
         vocab = list(self.counts[()].keys())
         while True:
-            distribution = 2**smoothing.probdist(context)
-            #print distribution
-            if sum(distribution) == 0: break
-            words = [tuple(range(len(vocab))),
-                     tuple(distribution)]
-            distribution = rv_discrete(name='words',values=words)
-            word = vocab[distribution.rvs()]
-            if word == self.Ender or word == self.Starter: break
+            context = tuple(generated[-(self.order-1):])
+            word = self.generateWord(context,smoothing,vocab)
+            if word==self.Ender or word==self.Starter: break
+            yield word
+            generated.append(word)
 
-            generated += word + ' '
-            #print word,
-            context = list(context)
-            context.append(word)
-            context = tuple(context[1:])
-
-        return generated.strip()
+    def generateWord(self, context, smoothing=None, vocab=None):
+        if smoothing==None: smoothing=self.smoothing
+        if vocab==None: vocab = list(self.counts[()].keys())
+        distribution = 2**smoothing.probdist(context)
+        if sum(distribution)==0: return self.Ender
+        words = [tuple(range(len(vocab))),
+                 tuple(distribution)]
+        distribution = rv_discrete(name='words',values=words)
+        word = vocab[distribution.rvs()]
+        return word
+        
 
     def prob(self, text, smoothing=None, boundariesCount=False, verbose=False):
         prob = 0.0
