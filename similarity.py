@@ -2,6 +2,8 @@ from numpy import *
 import scipy.spatial.distance as spd
 import scipy.sparse as sps
 import sklearn.preprocessing as sklpp
+from nltk.corpus import wordnet as wn
+
 
 class DistribSim:
     # Usage example:
@@ -40,35 +42,40 @@ class DistribSim:
         return array(m.todense())
 
 class WordnetSim:
-    from nltk.corpus import wordnet as wn
-    from numpy import array
 
     def __init__(self, vocab, method=None):
-        if self.weight == None:
-            self.weight = self.nullWeight
         self.vocab = vocab
+        self.method = method
         if self.method == None:
             self.method = wn.path_similarity
+        self.matrix = self.getSimilarityMatrix(vocab,self.method)
 
+    def similarity(self, w1, w2, method):
         if method==None: method = self.method
+        if not wn.synsets(w1) or not wn.synsets(w2):
+            return 0
+        if w1==w2: return 0
         sims = []
         for s1 in wn.synsets(w1):
             for s2 in wn.synsets(w2):
-                sims.append(method(s1,s2))
-        return min(sims)
-
+                sim = method(s1,s2)
+                if sim: sims.append(sim)
+        if sims: return min(sims)
+        else: return 0
+  
     def getSimilarityMatrix(self, vocab=[],method=None):
         if vocab==[]: vocab = self.vocab
         if method==None: method = self.method
 
-        m = array([
-                [self.similarity(w1,w2,method) for w1 in vocab] 
-                for w2 in vocab])
+        vocabLen = len(vocab)
+        m = array(
+            [self.similarity(vocab[i],vocab[j],method) 
+             for i in xrange(vocabLen) 
+             for j in xrange(i+1,vocabLen)])
         
+        m = spd.squareform(m)
         m = self.normalize(m)
-        for i, row in enumerate(m):
-            if sum(row) == 0:
-                row[i] = 1
+        fill_diagonal(m,1)
         return m
 
     def normalize(self, m):

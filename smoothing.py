@@ -1,5 +1,6 @@
 from numpy import *
 from collections import Counter
+import sklearn.preprocessing as sklpp
 
 class Smoothing:
     def __init__(self, counts=dict(), **kwargs):
@@ -25,16 +26,16 @@ class Smoothing:
         if self.OOV not in self.vocab:
             self.vocab.append(self.OOV)
 
-    def prob(self, word, context):
+    def prob(self, word, context, pdist=None):
         if type(context) is not tuple: 
             context = tuple(context)
+        if pdist==None:
+            pdist = self.probdist(context)
 
         if word not in self.vocab:
-            return self.prob(self.OOV, context)
+            return self.prob(self.OOV, context, pdist)
 
-        d = self.probdist(context)
-        return d[self.vocab.index(word)]
-
+        return pdist[self.vocab.index(word)]
 
     def probdist(self, context):
         if type(context) is not tuple:
@@ -51,11 +52,9 @@ class Smoothing:
         else:
             localCounts = Counter()
 
-        distribution = array([self.count(localCounts,w) for w in self.vocab])
+        # can this be sped up using sparse matrices?
+        distribution = array([localCounts[w] for w in self.vocab]) 
         return distribution
-
-    def count(self, counts, word):
-        return counts[word]
 
     def normalize(self, distribution):
         normalizer = sum(distribution)
@@ -75,8 +74,11 @@ class AdditiveSmoothing(Smoothing):
         if 'k' not in self.params:
             self.params['k'] = 1
 
-    def count(self, counts, word):
-        return counts[word] + self.params['k']
+    def probdist(self, context):
+        if type(context) is not tuple:
+            context = tuple(context)
+
+        return self.normalize(self.localCounts(context)+self.params['k'])
 
 
 class SimilaritySmoothing(Smoothing):
@@ -102,12 +104,29 @@ class SimilaritySmoothing(Smoothing):
         else:
             localCounts = Counter()
 
-        distribution = array([self.count(localCounts,w) for w in self.vocab])
+        distribution = array([localCounts[w] for w in self.vocab])
         return dot(distribution,self.params['mat'])
 
 
-class BackoffSmoothing(Smoothing):
+class AdaptiveSimilaritySmoothing(SimilaritySmoothing):
     def setDefaultParams(self):
-        if 'k' not in self.params:
-            self.k = 1
-        else: self.k = self.params['k']
+        self.params['mat'] = self.makeSimilarityMatrix(self.counts)
+
+    def makeSimilarityMatrix(self, counts):
+        counts = self.counts2array(counts).transpose() #matrix with words as rows
+        sklpp.normalize(counts,copy=False) #l2 norm
+        return dot(counts,counts.transpose())
+
+    def counts2array(self, counts):
+        return array([
+            [self.count(counts[ctx],w) 
+             for w in self.vocab]
+            for ctx in counts 
+            if len(ctx)==self.order
+            ])
+    
+
+
+        
+        
+        

@@ -77,4 +77,4 @@ from similarity import DistribSim
 from weighting import *
 import cPickle
 ds = DistribSim(l.getVocab(),cPickle.load(open('ctx')),pos(ttest))
-l.generate(1,SimilaritySmoothing(sim=ds))
+l.generate(smoothing=SimilaritySmoothing(sim=ds))
