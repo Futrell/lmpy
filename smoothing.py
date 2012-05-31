@@ -124,9 +124,3 @@ class AdaptiveSimilaritySmoothing(SimilaritySmoothing):
             for ctx in counts 
             if len(ctx)==self.order
             ])
-    
-
-
-        
-        
-        

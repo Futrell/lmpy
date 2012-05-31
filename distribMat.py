@@ -26,8 +26,9 @@ import gzip
 ###########################################################
 class ContextList:
 
-    # Initialize a context list with targets and optional limiting vocab.
     def __init__(self, targets=[], vocab=[]):
+        """Initialize a context list with list of targets and optional
+        limiting vocab. """
         self.contextCount = dict()
         for target in targets:
             target = target.strip()
@@ -42,27 +43,220 @@ class ContextList:
             self.vocabWords = frozenset(self.vocabWords)
         
 
-    # Add a context item for a target. Assume target is already in the dict contextCount.
-    # Only add context if vocabWords contains the relevant word and vocab is fixed.
     def addContext(self, target, contextItem):
+        """Add a context item for a target. Assume target is already 
+        in the dict contextCount.
+        Only add context if either vocab is not fixed, or if
+        vocabWords contains the relevant word and vocab is fixed."""
 
         contextItem = self.cleanLine(target,contextItem)
+        bareContextItem = self.stripRelation(contextItem)
 
         # if the ctx item has already been observed for this target, increment it
         if contextItem in self.contextCount[target]:
             self.contextCount[target][contextItem] += 1
         else:
             # add to counts if it's in the vocab words, or if vocab isn't fixed
-            if not self.fixedVocab or self.stripRelation(contextItem) in self.vocabWords:
+            if not self.fixedVocab or bareContextItem in self.vocabWords:
                 self.contextCount[target][contextItem] = 1
                 self.vocab.add(contextItem)
 
             # if vocab isn't fixed, add this word to the vocab words
             if not self.fixedVocab:
-                self.vocabWords.add(self.stripRelation(contextItem))
+                self.vocabWords.add(bareContextItem)
 
+
+    def processCorpus(self, corpusFile):
+        while True:
+            try:
+                line = sys.stdin.readline()
+            except:
+               line = ''
+            if line == '':
+                break
+
+            relationLabel = self.getRelationLabel(line)
+            #print "Processing line " + line + " which has relation " + relationLabel
+
+            if relations == [] or relationLabel in relations:
+                matches = re.findall('([\w#]+)-[0-9]+', line) # returns 2 matches
+                for (i,m) in enumerate(matches):
+                    if relations == [] or relations[relationLabel] == 0 or relations[relationLabel] == i+1:
+                        if m in self.targets: # assume targets given in advance
+                            self.addContext(m,line)
+
+    def getRelationLabel(self, line): return None
+
+    def stripRelation(self, contextItem): return contextItem
+
+    def cleanLine(self, target, line): return line
+
+    def printAll(self):
+        for target in self.contextCount:
+            print target + " = "
+            for context in self.contextCount[target]:
+                print context + ":" + str(self.contextCount[target][context]) + ","
+
+
+    def getTargets(self):
+        return self.contextCount.keys()
+
+
+    def getVocab(self):
+        return self.vocab
+
+
+    def getContextCounts(self):
+        return self.contextCount
+
+
+    def printAsMatrix(self, vocab=[]):
+        if vocab == []:
+            vocab = self.vocab
+        
+        for target in self.getTargets():
+            for context in vocab:
+                if context in self.contextCount[target]:
+                    print str(self.contextCount[target][context]),
+                else:
+                    print '0',
+            print
+
+
+            # Print the contents of this instance of the class.
+            # If options are given, print those contents instead.
+    def printToFiles(self, filename, targets=[], vocab = [], onlyMat = False):
+        if targets==[]: targets=self.targets
+        if vocab==[]: vocab=self.vocab
+        
+        rowsFile = open("%s_rows" % filename, 'w')
+        colsFile = open("%s_cols" % filename, 'w')
+        matFile = open("%s_mat" % filename, 'w')
+
+        for target in targets:
+            if not onlyMat:
+                rowsFile.write("%s," % target)
+            for context in vocab:
+                if not onlyMat:
+                    colsFile.write("%s," % context)
+                try:
+                    matFile.write(str(self.contextCount[target][context]))
+                except KeyError:
+                    matFile.write(str(0))
+                matFile.write(" ")
+
+        rowsFile.close()
+        colsFile.close()
+        matFile.close()
+                
+        
+			
+    def getVector(self, target, vocab=[]):
+        if vocab == []:
+            vocab = self.vocab
+            
+        contextVector = []
+        for context in vocab:
+            if target not in self.contextCount or context not in self.contextCount[target]:
+                contextVector.append(0)
+            else:
+                contextVector.append(self.contextCount[target][context])
+        return contextVector
                 
 
+    def getMatrix(self, vocab=[], targets=[]):
+        if vocab == []:
+            vocab = self.vocab
+
+        if targets == []:
+            targets = self.getTargets()
+            
+        contextMatrix = []
+        for target in targets:
+            contextMatrix.append(self.getVector(target,vocab))
+        return contextMatrix
+
+    def getCSRMatrix(self, vocab=[], targets=[]):
+        if vocab==[]: vocab=self.vocab
+        if targets==[]: targets=self.getTargets()
+
+        data = []
+        indices = []
+        indptr = [0]
+        for target in targets:
+            for i,context in enumerate(vocab):
+                try:
+                    data.append(self.contextCount[target][context])
+                    indices.append(i)
+                except KeyError: pass
+            indptr.append(indptr[-1] + (len(indices)-indptr[-1]))
+
+        try:
+            from numpy import array
+            from scipy.sparse import csr_matrix
+            return csr_matrix((array(data),array(indices),array(indptr)))
+        except:
+            return (data,indices,indptr)
+        # CSR matrix is a (data,indices,indptr) triple.
+        
+
+
+    def removeUnfoundTargets(self, vocab=[]):
+        if vocab == []:
+            vocab = self.vocab
+            
+        for target in self.contextCount.keys():
+            if len(self.contextCount[target]) == 0:
+                self.contextCount.pop(target)
+                self.targets = self.contextCount.keys()
+
+
+    def removeUnfoundContexts(self):
+        vocab = self.vocab
+        for context in vocab:
+            if all(context not in self.contextCount[target] for target in self.contextCount):
+                self.vocab.remove(context)
+
+
+    def setVocab(self, vocab):
+        self.vocab = set([])
+        self.vocabWords = set([])
+        for vocabWord in vocab:
+            self.vocabWords.add(vocabWord.strip())
+
+
+    def readFromFiles(self, filename):
+        rowsFile = open(filename+'_rows','r')
+        targets = rowsFile.readline().strip(",").split(",")
+        rowsFile.close()
+        print "Loaded rows"
+
+        colsFile = open(filename+'_cols','r')
+        self.vocab = colsFile.readline().strip(",").split(",")
+        colsFile.close()
+        print "Loaded columns"
+
+        self.contextCount = dict()
+        matFile = gzip.open(filename+'_mat.gz','r')
+        for lineNum,line in enumerate(matFile):
+            vector = [int(v) for v in line.strip().split(" ")]
+            if targets[lineNum] not in self.contextCount:
+                self.contextCount[targets[lineNum]] = dict()
+            nonZeroIndices = [n for n,i in enumerate(vector) if i>0]
+            for i,v in enumerate(vector):
+                if v>0:
+                    self.contextCount[targets[lineNum]][self.vocab[i]] = v
+                  
+        matFile.close()
+        print "Loaded matrix"
+        
+        self.removeUnfoundTargets()
+        self.vocabWords = frozenset([self.stripRelation(x) for x in self.vocab])
+        self.vocab = set(self.vocab)
+        print "Set internal vocabulary"
+
+
+class DependencyContextList(ContextList):
     # Process a corpus file or other iterable, with optional
     # restriction of relations to be counted. Relations is an
     # iterable containing permitted relations in the format
@@ -106,122 +300,6 @@ class ContextList:
         return line.strip()
 
 
-    def printAll(self):
-        for target in self.contextCount:
-            print target + " = "
-            for context in self.contextCount[target]:
-                print context + ":" + str(self.contextCount[target][context]) + ","
-
-
-    def getTargets(self):
-        return self.contextCount.keys()
-
-
-    def getVocab(self):
-        return self.vocab
-
-
-    def getContextCounts(self):
-        return self.contextCount
-
-
-    def printAsMatrix(self, vocab=[], relations=[]):
-        if vocab == []:
-            vocab = self.vocab
-        
-        for target in self.getTargets():
-            for context in vocab:
-                if context in self.contextCount[target]:
-                    print str(self.contextCount[target][context]),
-                else:
-                    print '0',
-            print
-
-
-            # Print the contents of this instance of the class.
-            # If options are given, print those contents instead.
-    def printToFiles(self, filename, relations=[],onlyMat = False):
-
-        if not relations == []:
-            relations = frozenset([r.split("/")[0] for r in relations])
-
-        if not onlyMat:
-            fr = open((filename+'_rows'), 'wb')
-        #writer.writerow(self.getTargets())
-
-        if not onlyMat:
-            fc = open((filename+'_cols'), 'wb')
-        #writer.writerow([self.vocab])
-        
-        f = open((filename+'_mat'), 'wb')
-        #writer.writerows(self.contextCount)
-        
-        for target in self.getTargets():
-            if not onlyMat:
-                fr.write(target+",")
-            for context in self.vocab:
-                if relations == [] or self.getRelationLabelLater(context) in relations:
-                    if context in self.contextCount[target]:
-                        f.write(str(self.contextCount[target][context])+" ")
-                    else:
-                        f.write('0'+" ")
-            f.write('\n')
-
-        if not onlyMat: 
-            for context in self.vocab:
-                if relations == [] or self.getRelationLabelLater(context) in relations:
-                    fc.write(context+",")
-			
-    def getVector(self, target, vocab=[]):
-        if vocab == []:
-            vocab = self.vocab
-            
-        contextVector = []
-        for context in vocab:
-            if target not in self.contextCount or context not in self.contextCount[target]:
-                contextVector.append(0)
-            else:
-                contextVector.append(self.contextCount[target][context])
-        return contextVector
-                
-
-    def getMatrix(self, vocab=[], targets=[]):
-        if vocab == []:
-            vocab = self.vocab
-
-        if targets == []:
-            targets = self.getTargets()
-            
-        contextMatrix = []
-        for target in targets:
-            contextMatrix.append(self.getVector(target,vocab))
-        return contextMatrix
-
-
-    def removeUnfoundTargets(self, vocab=[]):
-        if vocab == []:
-            vocab = self.vocab
-            
-        for target in self.contextCount.keys():
-            if len(self.contextCount[target]) == 0:
-                self.contextCount.pop(target)
-                self.targets = self.contextCount.keys()
-
-
-    def removeUnfoundContexts(self):
-        vocab = self.vocab
-        for context in vocab:
-            if all(context not in self.contextCount[target] for target in self.contextCount):
-                self.vocab.remove(context)
-
-
-    def setVocab(self, vocab):
-        self.vocab = set([])
-        self.vocabWords = set([])
-        for vocabWord in vocab:
-            self.vocabWords.add(vocabWord.strip())
-
-
     def stripRelation(self, context):
         context = re.sub(r'^[^ ]+','',context)
         context = re.sub(r' X','',context)
@@ -233,7 +311,6 @@ class ContextList:
 
     def getRelationLabelLater(self, context):
         return context.split(' ')[0]
-
 
     def getContextVectors(self,target,relations=[]):
         if not relations == []:
@@ -268,86 +345,6 @@ class ContextList:
         return ctxList
 
 
-    def readFromFiles(self, filename):
-        rowsFile = open(filename+'_rows','r')
-        targets = rowsFile.readline().strip(",").split(",")
-        rowsFile.close()
-        print "Loaded rows"
-
-        colsFile = open(filename+'_cols','r')
-        self.vocab = colsFile.readline().strip(",").split(",")
-        colsFile.close()
-        print "Loaded columns"
-
-        self.contextCount = dict()
-        matFile = gzip.open(filename+'_mat.gz','r')
-        for (lineNum,line) in enumerate(matFile):
-            vector = [int(v) for v in line.strip().split(" ")]
-            for (j,v) in enumerate(self.vocab):
-                if targets[lineNum] not in self.contextCount:
-                    self.contextCount[targets[lineNum]] = dict()
-                if vector[j] > 0:
-                    self.contextCount[targets[lineNum]][v] = vector[j]
-        matFile.close()
-        print "Loaded matrix"
-        
-        self.removeUnfoundTargets()
-        self.vocabWords = set([self.stripRelation(x) for x in self.vocab])
-        self.vocab = set(self.vocab)
-        print "Set internal vocabulary"
-        
 
 
-class ContextMatrix:
-    """Behaves like a real matrix representation,
-    which might be convenient somehow."""
-
-    def __init__(self):
-        self.vocab = []
-        self.targets = []
-        self.matrix = []
-
-
-    def getVocab(self):
-        return self.vocab
-
-
-    def setVocab(self, vocab):
-        for vocabWord in vocab:
-            self.vocab.append(vocabWord.strip())
-
-
-    def setTargets(self, targets):
-        for target in targets:
-            self.targets.append(target.strip())
-
-
-    def setMatrix(self, matrix):
-        self.matrix = matrix
-
-
-    def getTargets(self):
-        return self.targets
-
-
-    def getMatrix(self):
-        return self.matrix
-
-
-    def getAt(self, i,j):
-        return self.matrix[i][j]
-
-
-    def getVector(self, target):
-        return self.matrix[self.targets.index(target.strip())]
-
-
-    def getFeatureColumn(self, word):
-        return [self.matrix[i][self.vocab.index(word)] for i in xrange(targets.size())] # ???
-
-
-    def readMatrix(self, matrix):
-        self.matrix = []
-        for line in matrix:
-            self.matrix.append(line.strip().split(' '))
 

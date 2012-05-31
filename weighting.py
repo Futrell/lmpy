@@ -11,11 +11,11 @@ def pmi(x):
     return PwfObserved - PwfExpected
 
 def ttest(x):
-    PwfObserved, PwfExpected = getProbs(x)
-    numerator = (PwfObserved - PwfExpected)
-    denominator = PwfExpected 
-    denominator.data[:] = sqrt(denominator.data)
-    return numerator/denominator # elementwise /
+    o, e = getProbs(x)
+    denom = e
+    denom.data[:] = sqrt(denom.data)
+    
+    return (o-e)/denom # elementwise /
 
 def getProbs(x):
     x = x.astype(float)
@@ -24,8 +24,8 @@ def getProbs(x):
     Pwf = x / x.sum() #P(w,f)
 
     Pw = x.sum(1)
-    Pw /= Pw.sum(0)
+    Pw /= Pw.sum()
 
     Pf = x.sum(0)
-    Pf /= Pf.sum(1)
+    Pf /= Pf.sum()
     return Pwf, sps.csr_matrix(Pw * Pf)
