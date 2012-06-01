@@ -180,12 +180,12 @@ class ContextList:
     def getSparseMatrix(self, vocab=[], targets=[]):
         if vocab==[]: vocab=self.vocab
         if targets==[]: targets=self.getTargets()
-        vocabSet = frozenset(vocab)
+        vocab = {v:i for i,v in enumerate(vocab)}
 
         m = [(self.contextCount[t][c], 
-              (targets.index(t),vocab.index(c)))
+              (targets.index(t),vocab[c]))
              for t in targets for c in self.contextCount[t]
-             if c in vocabSet]
+             if c in vocab]
         try:
             from numpy import array
             from scipy.sparse import csr_matrix, coo_matrix
