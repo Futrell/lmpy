@@ -1,5 +1,6 @@
 from numpy import *
 from collections import Counter
+import scipy.sparse as sps
 import sklearn.preprocessing as sklpp
 
 class Smoothing:
@@ -30,7 +31,7 @@ class Smoothing:
         if type(context) is not tuple: 
             context = tuple(context)
         if pdist==None:
-            pdist = self.probdist(context)
+            pdist = sps.csr_matrix(self.probdist(context))
 
         if word not in self.vocab:
             return self.prob(self.OOV, context, pdist)
@@ -94,6 +95,12 @@ class SimilaritySmoothing(Smoothing):
                 print "I need a similarity matrix or a similarity object!"
             else:
                 self.params['mat'] = self.params['sim'].getSimilarityMatrix()
+        if 'matvocab' in self.params:
+            self.params['mat'] = self.fixVocab(self.params['mat'], self.params['matvocab'])
+
+    def fixVocab(self, mat, vocab):
+        print 'Not implemented yet.'
+        return mat
 
     def localCounts(self, context):
         if type(context) is not tuple:
