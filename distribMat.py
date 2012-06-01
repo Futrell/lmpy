@@ -59,7 +59,7 @@ class ContextList:
             # add to counts if it's in the vocab words, or if vocab isn't fixed
             if not self.fixedVocab or bareContextItem in self.vocabWords:
                 self.contextCount[target][contextItem] = 1
-                self.vocab.add(contextItem)
+                self.vocab.append(contextItem)
 
             # if vocab isn't fixed, add this word to the vocab words
             if not self.fixedVocab:
@@ -176,28 +176,25 @@ class ContextList:
             contextMatrix.append(self.getVector(target,vocab))
         return contextMatrix
 
-    def getCSRMatrix(self, vocab=[], targets=[]):
+
+    def getSparseMatrix(self, vocab=[], targets=[]):
         if vocab==[]: vocab=self.vocab
         if targets==[]: targets=self.getTargets()
+        vocabSet = frozenset(vocab)
 
-        data = []
-        indices = []
-        indptr = [0]
-        for target in targets:
-            for i,context in enumerate(vocab):
-                try:
-                    data.append(self.contextCount[target][context])
-                    indices.append(i)
-                except KeyError: pass
-            indptr.append(indptr[-1] + (len(indices)-indptr[-1]))
-
+        m = [(self.contextCount[t][c], 
+              (targets.index(t),vocab.index(c)))
+             for t in targets for c in self.contextCount[t]
+             if c in vocabSet]
         try:
             from numpy import array
-            from scipy.sparse import csr_matrix
-            return csr_matrix((array(data),array(indices),array(indptr)))
+            from scipy.sparse import csr_matrix, coo_matrix
+            m = coo_matrix(m,shape=(len(targets),len(vocab)))
+            return csr_matrix(m)
         except:
-            return (data,indices,indptr)
-        # CSR matrix is a (data,indices,indptr) triple.
+            print "Could not import scipy; returning parameters for a coo_matrix"
+            return m
+        # COO matrix is a [(data,(i,j))] list.
         
 
 
@@ -219,7 +216,7 @@ class ContextList:
 
 
     def setVocab(self, vocab):
-        self.vocab = set([])
+        self.vocab = []
         self.vocabWords = set([])
         for vocabWord in vocab:
             self.vocabWords.add(vocabWord.strip())
@@ -338,7 +335,7 @@ class DependencyContextList(ContextList):
                     (vWord,vRel) = (self.stripRelation(v),self.getRelationLabelLater(v))
                     #if vRel == targetRel:
                     #ctxList.vocabWords.add(vWord)
-                    ctxList.vocab.add(v)
+                    ctxList.vocab.append(v)
                 ctxList.contextCount[targetWord] = self.contextCount[targetWord]
         ctxList.removeUnfoundTargets()
         ctxList.targetFreqs = counts
