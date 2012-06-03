@@ -23,44 +23,40 @@ class DistribSim:
         self.ctxList = ctxList
         self.weight = weight
         if self.weight == None:
-            self.weight = self.nullWeight
+            self.weight = lambda x:x
         self.vocab = vocab
-        self.matrix = self.getSimilarityMatrix(vocab=vocab)
+        self.matrix = self.get_similarity_matrix(vocab=vocab)
 
-    def nullWeight(self, x):
-        return x
-
-    def getContextMatrix (self, vocab=[], ctxList=None):
+    def get_context_matrix (self, vocab=[], ctxList=None):
         if ctxList == None: ctxList = self.ctxList
         if vocab==[]: vocab = self.vocab
-        return ctxList.getCSRMatrix(targets=vocab) # sparse row matrix
+        return ctxList.getSparseMatrix(targets=vocab) # sparse row matrix
     
-    def getSimilarityMatrix(self, vocab=None, ctxList = None, weight = None):
+    def get_similarity_matrix(self, vocab=None, ctxList = None, weight = None):
         if (vocab==None and ctxList==None and weight==None): 
             return self.matrix
         if ctxList == None: ctxList = self.ctxList
         if vocab == None: vocab = self.vocab
         if weight == None: weight = self.weight
 
-        m = weight(ctxList.getCSRMatrix(targets=vocab))
+        m = weight(ctxList.getSparseMatrix(targets=vocab))
         sklpp.normalize(m,copy=False)
         m = dot(m,m.transpose()) # pairwise cosine similarities
 
         zeroRows = (m.sum(1)==0).astype(int)
-        toAdd = spdiags(zeroRows.transpose(),0,zeroRows.shape[0],zeroRows.shape[0],format='csr')
+        toAdd = sps.spdiags(zeroRows.transpose(),0,zeroRows.shape[0],zeroRows.shape[0],format='csr')
         m = m + toAdd # deal with OOV sims
 
         return m
 
 class WordnetSim:
-
     def __init__(self, vocab, method=None, multithread=False):
         self.vocab = vocab
         self.method = method
         if self.method == None:
             self.method = wn.path_similarity
         self.multithread = multithread
-        self.matrix = self.getSimilarityMatrix(vocab,self.method)
+        self.matrix = self.get_similarity_matrix(vocab,self.method)
 
     def similarity(self, w, method=None):
         if method==None: method = self.method
@@ -75,7 +71,7 @@ class WordnetSim:
         if toReturn==None: return 0
         else: return toReturn
   
-    def getSimilarityMatrix(self, vocab=[],method=None):
+    def get_similarity_matrix(self, vocab=[],method=None):
         if vocab==[]: vocab = self.vocab
         if method==None: method = self.method
 

@@ -180,20 +180,32 @@ class ContextList:
     def getSparseMatrix(self, vocab=[], targets=[]):
         if vocab==[]: vocab=self.vocab
         if targets==[]: targets=self.getTargets()
+        targets = {v:i for i,v in enumerate(targets)}
         vocab = {v:i for i,v in enumerate(vocab)}
 
-        m = [(self.contextCount[t][c], 
-              (targets.index(t),vocab[c]))
-             for t in targets for c in self.contextCount[t]
-             if c in vocab]
+        #m = [(self.contextCount[t][c], 
+        #      (targets[t],vocab[c]))
+        #     for t in targets for c in self.contextCount[t]
+        #     if c in vocab]
+        data = []
+        rows = []
+        cols = []
+        for t in targets:
+            if t in self.contextCount:
+                for c in self.contextCount[t]:
+                    if c in vocab:
+                        data.append(self.contextCount[t][c])
+                        rows.append(targets[t])
+                        cols.append(vocab[c])
+
         try:
             from numpy import array
             from scipy.sparse import csr_matrix, coo_matrix
-            m = coo_matrix(m,shape=(len(targets),len(vocab)))
+            m = coo_matrix((data,(rows,cols)),shape=(len(targets),len(vocab)),dtype="float")
             return csr_matrix(m)
-        except:
+        except ImportError:
             print "Could not import scipy; returning parameters for a coo_matrix"
-            return m
+            return (data,(rows,cols))
         # COO matrix is a [(data,(i,j))] list.
         
 

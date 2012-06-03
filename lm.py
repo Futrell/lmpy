@@ -1,8 +1,7 @@
-from nltk.tokenize import TreebankWordTokenizer as Tokenizer
+#from nltk.tokenize import TreebankWordTokenizer as Tokenizer
+from tok import Tokenizer
 from collections import Counter
-import numpy
-import random
-from scipy.stats import rv_discrete
+import numpy as np
 
 class LanguageModel:
     """A language model class.
@@ -22,11 +21,12 @@ class LanguageModel:
         self.Starter = '<S>'
         self.Ender = '</S>'
         self.OOV = '!OOV!'
-        if smoothing==None:
-            from smoothing import MLE
-            self.smoothing = MLE()
+        self.probEst = smoothing # might be None
+        if self.probEst==None:
+            from probest import MLE
+            self.probEst = MLE()
 
-    def generateString(self, context='',smoothing=None):
+    def generate_string(self, context='',smoothing=None):
         """Generate a string.
         
         Generate a string starting with specified prefix context
@@ -34,71 +34,61 @@ class LanguageModel:
         """
         return ' '.join(self.generate(context,smoothing))
 
-    def generateStrings(self, n, context='', smoothing=None):
+    def generate_strings(self, n, context='', smoothing=None):
         """Generate multiple strings. """
-        return [self.generateString(context,smoothing) for _ in xrange(n)]
+        return [self.generate_string(context,smoothing) for _ in xrange(n)]
         
-    def generate(self, context='', smoothing=None):
+    def generate(self, context=[], smoothing=None, boundaryMatters=True):
         """Generate a list of words.
         
-        Generate a string conditioned on previous context,
-        starting with context <S> and user-specified context,
+        Generate words conditioned on previous context,
+        starting with context <S> plus user-specified context,
         which can be a string or a list of word tokens. 
+
+        Set boundaryMatters=False to generate from a random 
+        beginning, rather than from <S>.
         """
         if smoothing == None:
-            smoothing = self.smoothing #MLE() by default
-        smoothing.updateCounts(self.counts)
-        generated=[]
-        if not context=='':
-            if type(context)==str:
-                context = self.tk.tokenize(context)
-            generated.extend(context)
-        generated.extend([w for w in self.generateWords(context, smoothing)])
+            smoothing = self.probEst #MLE() by default
+        smoothing.update_counts(self.counts)
+        if boundaryMatters:
+            prefix = [self.Starter for i in xrange(self.order-1)]
+        else:
+            prefix = []
+
+        if type(context)==str:
+            context = self.tk.tokenize(context)
+        prefix.extend(context)
+
+        generated = context # probably []
+        generated.extend([w for w in self.word_generator(prefix, smoothing)])
         return generated
 
-    def generateWords(self, context=[], smoothing=None):
-        """Generate words.
+    def word_generator(self, context=[], smoothing=None, vocab=[]):
+        """A generator for words.
    
-        This method yields words conditioned on precious
+        This method yields words conditioned on previous
         context. Words are generated then added to the
         accumulated context so far, which is the context
         for the generation of the next word. Generation
         stops when the Ender word is reached.
         """
-        if smoothing == None:
-            smoothing = self.smoothing #MLE() by default
+        probEst = smoothing
+        if probEst == None:
+            probEst = self.probEst #MLE() by default
         if type(context)==str:
             context = self.tk.tokenize(context)
-        generated = [self.Starter for i in xrange(self.order-1)]
-        if not context==[]:
-            generated.extend(context)
-        random.seed()
-        vocab = list(self.counts[()].keys())
+        generated=context
+
         while True:
             context = tuple(generated[-(self.order-1):])
-            word = self.generateWord(context,smoothing,vocab)
+            word = probEst.generate_word(context,sentinel=self.Ender)
+            while word==self.OOV: #regenerate until no OOV is generated
+                word = probEst.generate_word(context,sentinel=self.Ender)
             if word==self.Ender or word==self.Starter: break
+
             yield word
             generated.append(word)
-
-    def generateWord(self, context, smoothing=None, vocab=None):
-        """Generate a single word. 
-
-        Get the probability distribution of words following
-        context, with specified smoothing and vocab of 
-        possible words. If there are no possible continuations,
-        end the string by appending the Ender word.
-        """
-        if smoothing==None: smoothing=self.smoothing
-        if vocab==None: vocab = list(self.counts[()].keys())
-        distribution = 2**smoothing.probdist(context)
-        if sum(distribution)==0: return self.Ender
-        words = [tuple(range(len(vocab))),
-                 tuple(distribution)]
-        distribution = rv_discrete(name='words',values=words)
-        word = vocab[distribution.rvs()]
-        return word
-        
 
     def prob(self, text, smoothing=None, verbose=False):
         """Determine the probability of a string.
@@ -106,15 +96,16 @@ class LanguageModel:
         Tokenize a string, then get its probability according to
         the language model with specified smoothing. 
 
-        In the case of trigrams, 
-        calculates p(w0)p(w1|w0)p(w2|w0,w1)p(w3|w1,w2)...
+        Start- and end-tokens don't matter, e.g. for trigrams
+        calculates p(w0)p(w1|w0)p(w2|w0,w1)p(w3|w1,w2),...
+        not p(w0|<S>,<S>) etc.
         
         Set verbose to True to see all transitional probabilities.
         """
         prob = 0.0
         if type(text) == str:
             text = self.tk.tokenize(text)
-        text = self.addDelimiters(text)
+        text = self.add_delimiters(text)
         for i in xrange(self.order-1,len(text)):
             word = text[i]
             if word == self.Ender: break
@@ -130,7 +121,7 @@ class LanguageModel:
 
         return prob
         
-    def p(self, word, context=tuple(), smoothing=None, **kwargs):
+    def p(self, word, context=tuple(), smoothing=None):
         """Probability of a word after a context.
         
         Takes a word and context, which can be either a tuple
@@ -138,8 +129,8 @@ class LanguageModel:
         the model.
         """
         if smoothing == None:
-            smoothing = self.smoothing
-        smoothing.updateCounts(self.counts)
+            smoothing = self.probEst
+        smoothing.update_counts(self.counts)
 
         if type(context) == str:
             context = self.tk.tokenize(context)
@@ -147,7 +138,31 @@ class LanguageModel:
 
         return smoothing.prob(word, context)
 
-    def addText(self, text, order=0):
+    def probdist(self, context=tuple(), smoothing=None):
+        """Probability of a word after a context.
+        
+        Takes a word and context, which can be either a tuple
+        or a string. Context is truncated to fit the order of
+        the model.
+        """
+        probEst = smoothing
+        if probEst == None:
+            probEst = self.probEst
+        probEst.update_counts(self.counts)
+
+        if type(context) == str:
+            context = tuple(self.tk.tokenize(context))
+        if type(context) == list:
+            context = tuple(context)
+
+        d = probEst.probdist(context)
+        return {v : 2**d[i] 
+                for i,v in enumerate(probEst.vocab)
+                if not np.isinf(d[i])}
+
+
+
+    def add_text(self, text, order=0):
         """Add text to the language model.
         
         Breaks a text into 1:n-grams and stores those grams.
@@ -157,14 +172,14 @@ class LanguageModel:
         if order == 0: order = self.order
         if type(text) == str:
             text = self.tk.tokenize(text)
-        text = self.addDelimiters(text,order)
+        text = self.add_delimiters(text,order)
         for o in xrange(1,order+1):
             for i in xrange(len(text)-(o-1)):
-                self.addGram(text[i:i+o])
-        if self.smoothing is not None:
-            self.smoothing.updateCounts(self.counts)
+                self.add_gram(text[i:i+o])
+        if self.probEst is not None:
+            self.probEst.update_counts(self.counts)
 
-    def addDelimiters(self, text, order=0):
+    def add_delimiters(self, text, order=0):
         """ Add delimiters to a text.
 
         Append the appropriate number of Starter and Ender
@@ -181,7 +196,7 @@ class LanguageModel:
             text.append(self.Ender)
         return text
 
-    def addGram(self, text):
+    def add_gram(self, text):
         """ Add a single n-gram to the model. 
 
         This adds the 1:n-grams from a given string 
@@ -198,14 +213,14 @@ class LanguageModel:
             self.counts[context][word] += 1
         #print "Added gram:",context,":",word
         
-    def addTextFile(self, infile, order=0):        
+    def add_text_file(self, infile, order=0):        
         """ Add a text file to the model. """
         if type(infile) == str:
             infile = open(infile,'r')
         for line in infile:
-            self.addText(line.strip())
+            self.add_text(line.strip())
     
-    def getVocab(self):
+    def get_vocab(self):
         """ Return the possible words, plus the OOV word."""
         vocab = self.counts[()].keys()
         if self.OOV not in vocab:
