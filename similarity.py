@@ -47,7 +47,10 @@ class DistribSim:
 
         if ctxList == None: ctxList = self.ctxList
         if vocab==[]: vocab = self.vocab
-        return ctxList.getSparseMatrix(targets=vocab) # sparse row matrix
+        return ctxList.get_sparse_matrix(targets=vocab) # sparse row matrix
+
+    def similarity(self, w1, w2):
+        return self.matrix[self.vocab.index(w1),self.vocab.index(w2)]
     
     def get_similarity_matrix(self, vocab=None, ctxList = None, weight = None):
         """ Return a similarity matrix.
@@ -86,7 +89,7 @@ class DistribSim:
             x = sps.csr_matrix(x)
             return x
 
-        m = weight(ctxList.getSparseMatrix(targets=vocab))
+        m = weight(ctxList.get_sparse_matrix(targets=vocab))
         sklpp.normalize(m,copy=False)
         m = dot(m,m.transpose()) # pairwise cosine similarities
         #m = remove_negatives(m) # might be slow
