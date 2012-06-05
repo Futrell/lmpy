@@ -41,10 +41,10 @@ class MLE(object):
         self.counts = counts
         self.update_vocab()
 
-    def update_vocab(self, vocab=[]):
+    def update_vocab(self, vocab=None):
         """ Synchronize the internal vocabulary with the 
         current counts dict. """
-        if vocab==[]:
+        if not vocab:
             if () in self.counts:
                 self.vocab = self.counts[()].keys()
         else: 

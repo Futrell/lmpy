@@ -38,7 +38,7 @@ class LanguageModel:
         """Generate multiple strings. """
         return [self.generate_string(context,smoothing) for _ in xrange(n)]
         
-    def generate(self, context=[], smoothing=None, boundaryMatters=True):
+    def generate(self, context=None, smoothing=None, boundaryMatters=True):
         """Generate a list of words.
         
         Generate words conditioned on previous context,
@@ -48,6 +48,7 @@ class LanguageModel:
         Set boundaryMatters=False to generate from a random 
         beginning, rather than from <S>.
         """
+        if not context: context = []
         if smoothing == None:
             smoothing = self.probEst #MLE() by default
         smoothing.update_counts(self.counts)
@@ -64,7 +65,7 @@ class LanguageModel:
         generated.extend([w for w in self.word_generator(prefix, smoothing)])
         return generated
 
-    def word_generator(self, context=[], smoothing=None, vocab=[]):
+    def word_generator(self, context=None, smoothing=None, vocab=[]):
         """A generator for words.
    
         This method yields words conditioned on previous
@@ -73,6 +74,7 @@ class LanguageModel:
         for the generation of the next word. Generation
         stops when the Ender word is reached.
         """
+        if not context: context = []
         probEst = smoothing
         if probEst == None:
             probEst = self.probEst #MLE() by default
@@ -100,7 +102,7 @@ class LanguageModel:
         calculates p(w0)p(w1|w0)p(w2|w0,w1)p(w3|w1,w2),...
         not p(w0|<S>,<S>) etc.
         
-        Set verbose to True to see all transitional probabilities.
+        Set verbose=True to see all transitional probabilities.
         """
         prob = 0.0
         if type(text) == str:

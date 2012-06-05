@@ -23,15 +23,15 @@ class DistribSim:
     vectors, which may be weighted by a user-specified weight
     function (from the weighting module).
     """
-    def __init__(self, vocab, ctxList, weight=None):
+    def __init__(self, ctxList, vocab=None, weight=None):
         self.ctxList = ctxList
         self.weight = weight
-        if self.weight == None:
-            self.weight = lambda x:x
+        if not self.weight: self.weight = lambda x:x
         self.vocab = vocab
+        if not self.vocab: self.vocab = ctxList.get_targets()
         self.matrix = self.get_similarity_matrix(vocab=vocab)
 
-    def get_context_matrix (self, vocab=[], ctxList=None):
+    def get_context_matrix(self, vocab=None, ctxList=None):
         """ Return the context matrix for a given vocab.
 
         Args:
@@ -45,8 +45,8 @@ class DistribSim:
         contexts.
         """
 
-        if ctxList == None: ctxList = self.ctxList
-        if vocab==[]: vocab = self.vocab
+        if not ctxList: ctxList = self.ctxList
+        if not vocab: vocab = self.vocab
         return ctxList.get_sparse_matrix(targets=vocab) # sparse row matrix
 
     def similarity(self, w1, w2):
@@ -130,7 +130,7 @@ class WordnetSim:
         if toReturn==None: return 0
         else: return toReturn
   
-    def get_similarity_matrix(self, vocab=[],method=None):
+    def get_similarity_matrix(self, vocab=None, method=None):
         """ Return a similarity matrix.
        
         Returns the similarity matrix for words; this is
@@ -148,8 +148,8 @@ class WordnetSim:
         Returns: A CSR similarity matrix.
         """
 
-        if vocab==[]: vocab = self.vocab
-        if method==None: method = self.method
+        if not vocab: vocab = self.vocab
+        if not method: method = self.method
 
         vocabLen = len(vocab)
         similarity = partial(self.similarity,method=method)
