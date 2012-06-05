@@ -75,6 +75,6 @@ l.add_text("Of what is past, or passing, or to come.")
 from similarity import DistribSim
 from weighting import *
 import cPickle
-ds = DistribSim(l.get_vocab(),cPickle.load(open('ctx')))
+ds = DistribSim(l.get_vocab(),cPickle.load(open('ctx')),pos(pmi))
 from probest import *
 l.generate_string(smoothing=SimilaritySmoothing(sim=ds))

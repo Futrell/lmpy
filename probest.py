@@ -5,7 +5,7 @@ from scipy.stats import rv_discrete
 import random
 import sklearn.preprocessing as sklpp
 
-class MLE:
+class MLE(object):
     """ Maximum Likelihood Estimator
 
     A class for returning MLE probability estimates
@@ -53,7 +53,21 @@ class MLE:
         if self.OOV not in self.vocab:
             self.vocab.append(self.OOV)
 
-    def prob(self, word, context, pdist=None):
+    def prob(self, word, context=tuple(), pdist=None):
+        """ The probability of a word in a context.
+
+        Given a word and a context, return the probability of the word
+        in that context for the given probability distribution.
+
+        Args:
+        word: The word whose probability is to be evaluated,
+        context: A tuple representing the context of that word,
+        pdist: Optionally, a custom distribution to sample the word from,
+        in which case the context parameter becomes irrelevant.
+
+        Returns: log2(p(word|context))
+        """
+
         if type(context) is not tuple: 
             context = tuple(context)
         if pdist==None:
@@ -65,12 +79,20 @@ class MLE:
         return pdist[self.vocab.index(word)]
 
     def probdist(self, context):
+        """ Probability distribution of words after a context.
+
+        Returns a numpy array representing the probability distribution
+        of words after the given tuple context; probabilities in 
+        log2-space. The probability of word w is located in the array
+        at position vocab.index(w).
+        """
         if type(context) is not tuple:
             context = tuple(context)
 
-        return self.normalize(self._local_counts(context))
+        return self._normalize(self._local_counts(context))
 
     def _local_counts(self, context):
+        """ Return an array of the counts of words after a context. """
         if type(context) is not tuple:
             context = tuple(context)
 
@@ -83,7 +105,13 @@ class MLE:
         c = array([localCounts[w] for w in self.vocab]) 
         return c
 
-    def normalize(self, distribution):
+    def _normalize(self, distribution):
+        """ Normalize a probability distribution.
+
+        Takes a numpy array of counts for words and l1-normalizes it
+        to return a probability distribution in log2-space. Returns
+        the normalized distribution array.
+        """
         #print distribution
         normalizer = distribution.sum()
         if normalizer == 0:
@@ -97,6 +125,13 @@ class MLE:
         Sample from the probability distribution of words following
         context. If there are no possible continuations,
         end the string by appending the sentinel word.
+
+        Args:
+        context: The tuple context for the word.
+        vocab: The vocabulary of words in the resulting probability
+        distribution.
+        sentinel: The value to return when the probability of all
+        words is 0.
         """
         
         if vocab==None: vocab=self.vocab
@@ -117,17 +152,25 @@ class AdditiveSmoothing(MLE):
             self.params['k'] = 1
 
     def probdist(self, context):
+        """ Probability distribution of words after a context.
+
+        Returns a numpy array representing the probability distribution
+        of words after the given tuple context; probabilities in 
+        log2-space. The probability of word w is located in the array
+        at position vocab.index(w). k is added to every value.
+        """
         if type(context) is not tuple:
             context = tuple(context)
 
-        return self.normalize(self._local_counts(context)+self.params['k'])
+        return self._normalize(self._local_counts(context)+self.params['k'])
 
 
 class SimilaritySmoothing(MLE):
     """Implements similarity-based smoothing based on the formula
     in Erk, Pado & Pado (2010). Requires either a similarity
     matrix, with values between 0 and 1, or a "sim" object,
-    which can be anything that exports a similarity matrix.
+    which can be anything that produces a similarity matrix
+    via the method get_similarity_matrix(). 
     1 should represent maximal similarity. """
 
     def _set_default_params(self):
@@ -144,12 +187,19 @@ class SimilaritySmoothing(MLE):
         return mat
 
     def probdist(self, context):
+        """ Probability distribution of words after a context.
+
+        Returns a numpy array representing the similarity-smoothed 
+        probability distribution of words after the given tuple context; 
+        probabilities in log2-space. The probability of word w is 
+        located in the array at position vocab.index(w).
+        """
         if type(context) is not tuple:
             context = tuple(context)
 
         distribution = sps.csr_matrix(self._local_counts(context))
         distribution = dot(distribution,self.params['mat'])
-        return self.normalize(array(distribution.todense())[0,:])
+        return self._normalize(array(distribution.todense())[0,:])
 
 class BackoffSmoothing(MLE):
 

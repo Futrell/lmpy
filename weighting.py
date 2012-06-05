@@ -13,9 +13,9 @@ def pmi(x):
     o, e = getProbs(x) 
     o = log2(o) #let log2(0) = 0
     e = log2(e)
-    o[isinf(o)]=0
-    e[isinf(e)]=0
-    return sps.csr_matrix(o-e)
+    result = o-e
+    result[isinf(result)]=0
+    return sps.csr_matrix(result)
 
 def ttest(x):
     o, e = getProbs(x)
