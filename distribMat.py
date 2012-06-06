@@ -1,3 +1,46 @@
+"""
+This code contains classes for the collection of contextual
+vectors for words.
+
+A corpus is read and target words are found in it; the 
+contexts of those words are parsed into features using
+one of the ContextParser classes and stored in ContextList.
+
+The __main__ method reads a corpus from standard input and,
+with specified parameters, builds a ContextList for that
+corpus. 
+
+Classes:
+1. ContextList: Contains the contexts for a set of target
+words. Read in a corpus with process_corpus and get 
+contextual vectors with get_vector or get_matrix.
+
+2. ContextParser: A class for converting a line of a corpus
+containing a target word into a representation of the 
+contexts for the target word in that line. Subclasses:
+
+2a1. BagParser: Processes raw text into a bag-of-words
+representation.
+
+2a2. PositionalParser: Processes raw text into a bag-of-words
+with context words marked for their position relative to
+the target word.
+
+2a3. NGramParser: Processes n-grams with counts into a 
+bag of words with appropriate counts. To include positional
+information, use PositionalNGramParser.
+
+2b. DepsParser: Processes a dependency-parsed corpus into
+features including grammatical relation.
+"""
+
+__author__ = "Richard Futrell"
+__copyright__ = "Copyright 2012, Richard Futrell"
+__credits__ = []
+__license__ = "Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License: http://creativecommons.org/licenses/by-nc-sa/3.0/"
+__maintainer__ = "Richard Futrell"
+__email__ = "See the author's website"
+
 import sys
 import fileinput
 import re
@@ -24,6 +67,15 @@ class ContextParser(object):
             self.tokenize = lambda x : x.split(" ")
         self.lemmatize = lemmatize
         self.boundaries = boundaries
+        if 'preLemmatized' in kwargs:
+            def get_lemma(x):
+                x = x.split(kwargs['preLemmatized'])
+                return x[-1]
+            def get_lemmata(xs):
+                return [get_lemma(x) for x in xs]
+            self.lemmatize = get_lemmata
+
+
         self._set_parameters(**kwargs)
     
     def _set_parameters(self, **kwargs): pass
@@ -52,14 +104,6 @@ class DepsParser(ContextParser):
             self.limitingRels = frozenset(kwargs['limitingRels'])
         else: self.limitingRels = None
         
-        if 'preLemmatized' in kwargs:
-            def get_lemma(x):
-                x = x.split(kwargs['preLemmatized'])
-                return x[-1]
-            def get_lemmata(xs):
-                return [get_lemma(x) for x in xs]
-            self.lemmatize = get_lemmata
-
     def _initialize_regexes(self):
         self.XMLMatcher = re.compile("</?D>")
         self.wordNumMatcher = re.compile("-[0-9]+")
@@ -239,13 +283,17 @@ class ContextList(object):
     def get_vocab(self):
         return self.vocab.keys()
 
+    def print_vector(self, target, vocab=None):
+        if not vocab: vocab = self.vocab
+        for context in vocab:
+            print str(self.contextCount[target][context]),
+
     def print_matrix(self, targets=None, vocab=None):
         if not targets: targets = self.targets
         if not vocab: vocab = self.vocab
         
         for target in targets:
-            for context in vocab:
-                print str(self.contextCount[target][context]),
+            self.print_vector(target, vocab)
             print
 
     def print_to_files(self, filename, targets=None, vocab=None):
@@ -329,3 +377,46 @@ class ContextList(object):
         self._set_targets(targets)
         self._set_vocab(vocab)
         print "Set internal parameters."
+
+
+if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Convert contexts to vectors.')
+    parser.add_argument('-t, --targets', metavar='t', type=str, dest='t',
+                        help='a file containing target words', default='')
+    parser.add_argument('-v, --vocab', metavar='v', type=str, dest='v',
+                        help='a file containing limiting vocabulary for contexts',
+                        default='')
+    parser.add_argument('-r, --relations', metavar='r', type=str, dest='r',
+                        help='a file containing limiting relations for dependency contexts',
+                        default='')
+    parser.add_argument('-c, --corpus-type', metavar='c', type=str, dest='c',
+                        help='corpus type: dep for dependency-parsed corpus, ngram for ngrams',
+                        default='')
+    parser.add_argument('-f, --corpus-file', metavar='f', type=str, dest='corpus',
+                        help="corpus file: in case you'd rather not read from stdin",
+                        default='')
+    parser.add_argument('-o, --outfile', metavar='o', type=str, dest='outfile',
+                        help="output file: output will be printed to this filename",
+                        default='out')
+
+    args = parser.parse_args()
+    if not args.corpus:
+        corpus = sys.stdin
+    else:
+        corpus = open(args.corpus,'r')
+    
+    if args.c == 'dep' or args.c == 'deps':
+        p = DepsParser(limitingRels = args.r, 
+                       preLemmatized = lemmaDelimiter)
+    elif args.c == 'ngram':
+        p = PositionalNGramParser()
+    else:
+        p = PositionalParser()
+    c = ContextList(targets=args.t, vocab=args.v)
+    c.process_corpus(corpus, p)
+    corpus.close()
+    
+    c.print_to_files(args.outfile)
+
