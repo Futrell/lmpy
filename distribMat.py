@@ -25,7 +25,6 @@ class ContextParser(object):
         self.lemmatize = lemmatize
         self.boundaries = boundaries
         self._set_parameters(**kwargs)
-<<<<<<< HEAD
     
     def _set_parameters(self, **kwargs): pass
     
@@ -43,50 +42,23 @@ class ContextParser(object):
         return 1
 
 class DepsParser(ContextParser):
-    def __init__(self, lemmatize = lambda x:x, **kwargs):
-        self.tokenize = lambda x : x.split(" ")
-        self.lemmatize = lemmatize
-=======
-    
-    def _set_parameters(self, **kwargs): pass
-    
-    def parse(self, target, line):
-        for word in line:
-            yield (word,)
-
-    def preprocess(self, line): 
-        if self.boundaries:
-            line.insert(0,'<S>')
-            line.append('</S>')
-        return line.lower()
-
-class DepsParser(ContextParser):
     def __init__(self, **kwargs):
         self.tokenize = lambda x : x.split(" ")
->>>>>>> 9475fe721c37c0b2d5af101bdfdb98c4e590463d
         self._set_parameters(**kwargs)
         self._initialize_regexes()
 
     def _set_parameters(self, **kwargs):
         if 'limitingRels' in kwargs:
-<<<<<<< HEAD
             self.limitingRels = frozenset(kwargs['limitingRels'])
-=======
-            self.limitingRels = kwargs['limitingRels']
->>>>>>> 9475fe721c37c0b2d5af101bdfdb98c4e590463d
         else: self.limitingRels = None
         
         if 'preLemmatized' in kwargs:
             def get_lemma(x):
                 x = x.split(kwargs['preLemmatized'])
                 return x[-1]
-<<<<<<< HEAD
             def get_lemmata(xs):
                 return [get_lemma(x) for x in xs]
             self.lemmatize = get_lemmata
-=======
-            self.lemmatize = get_lemma
->>>>>>> 9475fe721c37c0b2d5af101bdfdb98c4e590463d
 
     def _initialize_regexes(self):
         self.XMLMatcher = re.compile("</?D>")
@@ -96,14 +68,8 @@ class DepsParser(ContextParser):
     
     def preprocess(self, line):
         line = re.sub(self.XMLMatcher,"",line)
-<<<<<<< HEAD
         line = re.sub(self.parenthesisMatcher," ",line)
         line = re.sub(self.commaMatcher," ",line)
-=======
-        line = re.sub(self.parenthesisMatcher,"",line)
-        line = re.sub(self.commaMatcher,"",line)
-        line = re.sub("\^","#",line)
->>>>>>> 9475fe721c37c0b2d5af101bdfdb98c4e590463d
         line = re.sub("VB[ZNDPG]-","VB-",line)
         line = re.sub("NNS-","NN-",line)
         line = re.sub(self.wordNumMatcher,"",line)
@@ -114,16 +80,11 @@ class DepsParser(ContextParser):
     def parse(self, target, line):
         rel = line[0]
         if not self.limitingRels or rel in self.limitingRels:
-<<<<<<< HEAD
             line = line[1:]
             line = self.lemmatize(line)
             for pos, word in enumerate(line):
                 if not pos+1==target:
                     yield (word, rel, pos+1)
-=======
-            for pos,word in enumerate(line[1:]):
-                yield (word, rel, pos+1)
->>>>>>> 9475fe721c37c0b2d5af101bdfdb98c4e590463d
 
 
 class BagParser(ContextParser):
@@ -153,24 +114,16 @@ class BagParser(ContextParser):
             post = target
 
         line = self.lemmatize(line)
-<<<<<<< HEAD
         return self._parse_line(target, line, range(pre, post))
 
     def _parse_line(self, target, line, indices):
         for i in indices:
-=======
-        return self._parse_line(target, line, pre, post)
-
-    def _parse_line(self, target, line, pre, post):
-        for i in xrange(pre, post):
->>>>>>> 9475fe721c37c0b2d5af101bdfdb98c4e590463d
             if not i==target:
                 yield (line[i],)
 
 
 class PositionalParser(BagParser):
 
-<<<<<<< HEAD
     def _parse_line(self, target, line, indices):
         for i in indices:
             if not i==target:
@@ -196,17 +149,8 @@ class NGramParser(BagParser):
 
 class PositionalNGramParser(NGramParser, PositionalParser):
     pass
-
-    
-=======
-    def _parse_line(self, target, line, pre, post):
-        for i in xrange(pre, post):
-            pos = i-target
-            if pos:
-                yield (line[i], pos)
         
     
->>>>>>> 9475fe721c37c0b2d5af101bdfdb98c4e590463d
 class ContextList(object):
     """ ContextList class.
     
@@ -245,11 +189,7 @@ class ContextList(object):
                 self.limitingVocab = frozenset([v.strip() for v in vocab])
         else: 
             self.limitingVocab = None
-<<<<<<< HEAD
         self.vocab = OrderedDict([(v, None) for v in vocab])
-=======
-        self.vocab = OrderedDict([(v,None) for v in vocab])
->>>>>>> 9475fe721c37c0b2d5af101bdfdb98c4e590463d
 
     def add_context(self, target, contextItem, count=1):
         """Add a context item for a target. 
@@ -264,13 +204,8 @@ class ContextList(object):
         else:
             # add to counts if it's in the vocab words, or if vocab isn't fixed
             if not self.limitingVocab or contextItem[0] in self.limitingVocab:
-<<<<<<< HEAD
                 self.contextCount[target][contextItem] = count
                 self.vocab[contextItem] = None # add to vocab
-=======
-                self.contextCount[target][contextItem] = 1
-                self.vocab[contextItem] = None
->>>>>>> 9475fe721c37c0b2d5af101bdfdb98c4e590463d
 
     def process_corpus(self, corpusFile = None, parser = PositionalParser()):
         if not corpusFile: corpusFile = sys.stdin
@@ -290,11 +225,7 @@ class ContextList(object):
                     if not target in self.contextCount:
                         self.targets.append(target)
                     for contextItem in parser.parse(targetPos, words):
-<<<<<<< HEAD
                         self.add_context(target,contextItem, count)
-=======
-                        self.add_context(target,contextItem)
->>>>>>> 9475fe721c37c0b2d5af101bdfdb98c4e590463d
 
     def print_all(self):
         for target in self.contextCount:

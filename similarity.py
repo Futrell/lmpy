@@ -45,13 +45,8 @@ class DistribSim:
         contexts.
         """
 
-<<<<<<< HEAD
         if not ctxList: ctxList = self.ctxList
         if not vocab: vocab = self.vocab
-=======
-        if ctxList == None: ctxList = self.ctxList
-        if vocab==[]: vocab = self.vocab
->>>>>>> 9475fe721c37c0b2d5af101bdfdb98c4e590463d
         return ctxList.get_sparse_matrix(targets=vocab) # sparse row matrix
 
     def similarity(self, w1, w2):
