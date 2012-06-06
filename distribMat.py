@@ -38,22 +38,28 @@ class ContextParser(object):
             line.append('</S>')
         return line.lower()
 
+    def get_count(self, line):
+        return 1
+
 class DepsParser(ContextParser):
-    def __init__(self, **kwargs):
+    def __init__(self, lemmatize = lambda x:x, **kwargs):
         self.tokenize = lambda x : x.split(" ")
+        self.lemmatize = lemmatize
         self._set_parameters(**kwargs)
         self._initialize_regexes()
 
     def _set_parameters(self, **kwargs):
         if 'limitingRels' in kwargs:
-            self.limitingRels = kwargs['limitingRels']
+            self.limitingRels = frozenset(kwargs['limitingRels'])
         else: self.limitingRels = None
         
         if 'preLemmatized' in kwargs:
             def get_lemma(x):
                 x = x.split(kwargs['preLemmatized'])
                 return x[-1]
-            self.lemmatize = get_lemma
+            def get_lemmata(xs):
+                return [get_lemma(x) for x in xs]
+            self.lemmatize = get_lemmata
 
     def _initialize_regexes(self):
         self.XMLMatcher = re.compile("</?D>")
@@ -63,9 +69,8 @@ class DepsParser(ContextParser):
     
     def preprocess(self, line):
         line = re.sub(self.XMLMatcher,"",line)
-        line = re.sub(self.parenthesisMatcher,"",line)
-        line = re.sub(self.commaMatcher,"",line)
-        line = re.sub("\^","#",line)
+        line = re.sub(self.parenthesisMatcher," ",line)
+        line = re.sub(self.commaMatcher," ",line)
         line = re.sub("VB[ZNDPG]-","VB-",line)
         line = re.sub("NNS-","NN-",line)
         line = re.sub(self.wordNumMatcher,"",line)
@@ -76,8 +81,11 @@ class DepsParser(ContextParser):
     def parse(self, target, line):
         rel = line[0]
         if not self.limitingRels or rel in self.limitingRels:
-            for pos,word in enumerate(line[1:]):
-                yield (word, rel, pos+1)
+            line = line[1:]
+            line = self.lemmatize(line)
+            for pos, word in enumerate(line):
+                if not pos+1==target:
+                    yield (word, rel, pos+1)
 
 
 class BagParser(ContextParser):
@@ -107,22 +115,42 @@ class BagParser(ContextParser):
             post = target
 
         line = self.lemmatize(line)
-        return self._parse_line(target, line, pre, post)
+        return self._parse_line(target, line, range(pre, post))
 
-    def _parse_line(self, target, line, pre, post):
-        for i in xrange(pre, post):
+    def _parse_line(self, target, line, indices):
+        for i in indices:
             if not i==target:
                 yield (line[i],)
 
 
 class PositionalParser(BagParser):
 
-    def _parse_line(self, target, line, pre, post):
-        for i in xrange(pre, post):
-            pos = i-target
-            if pos:
+    def _parse_line(self, target, line, indices):
+        for i in indices:
+            if not i==target:
+                pos = i-target
                 yield (line[i], pos)
-        
+
+
+class NGramParser(BagParser):
+    def get_count(self, line):
+        return int(line.split("\t")[-1])
+    
+    def preprocess(self, line):
+        line = line.split("\t")[0]
+        return line.lower()
+
+    def parse(self, target, line):
+        if (self.suffix and target == 0) or (self.prefix 
+                                             and target == len(line)-1):
+            line = self.lemmatize(line)
+            return self._parse_line(target, line, range(0, len(line)))
+        else: return []
+
+
+class PositionalNGramParser(NGramParser, PositionalParser):
+    pass
+
     
 class ContextList(object):
     """ ContextList class.
@@ -162,9 +190,9 @@ class ContextList(object):
                 self.limitingVocab = frozenset([v.strip() for v in vocab])
         else: 
             self.limitingVocab = None
-        self.vocab = OrderedDict([(v,None) for v in vocab])
+        self.vocab = OrderedDict([(v, None) for v in vocab])
 
-    def add_context(self, target, contextItem):
+    def add_context(self, target, contextItem, count=1):
         """Add a context item for a target. 
 
         Only adds context if either vocab is not fixed, or if
@@ -173,12 +201,12 @@ class ContextList(object):
 
         # if the ctx item has already been observed for this target, increment it
         if contextItem in self.contextCount[target]:
-            self.contextCount[target][contextItem] += 1
+            self.contextCount[target][contextItem] += count
         else:
             # add to counts if it's in the vocab words, or if vocab isn't fixed
             if not self.limitingVocab or contextItem[0] in self.limitingVocab:
-                self.contextCount[target][contextItem] = 1
-                self.vocab[contextItem] = None
+                self.contextCount[target][contextItem] = count
+                self.vocab[contextItem] = None # add to vocab
 
     def process_corpus(self, corpusFile = None, parser = PositionalParser()):
         if not corpusFile: corpusFile = sys.stdin
@@ -190,6 +218,7 @@ class ContextList(object):
             if line == '':
                 break
 
+            count = parser.get_count(line)
             line = parser.preprocess(line)
             words = parser.tokenize(line)
             for targetPos, target in enumerate(words):
@@ -197,7 +226,7 @@ class ContextList(object):
                     if not target in self.contextCount:
                         self.targets.append(target)
                     for contextItem in parser.parse(targetPos, words):
-                        self.add_context(target,contextItem)
+                        self.add_context(target,contextItem, count)
 
     def print_all(self):
         for target in self.contextCount:

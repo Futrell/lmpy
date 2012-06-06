@@ -29,7 +29,7 @@ class DistribSim:
         if not self.weight: self.weight = lambda x:x
         self.vocab = vocab
         if not self.vocab: self.vocab = ctxList.get_targets()
-        self.matrix = self.get_similarity_matrix(vocab=vocab)
+        self.matrix = self.get_similarity_matrix(vocab=vocab,weight=self.weight)
 
     def get_context_matrix(self, vocab=None, ctxList=None):
         """ Return the context matrix for a given vocab.
