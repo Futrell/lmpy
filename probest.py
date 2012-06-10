@@ -1,4 +1,23 @@
-from numpy import *
+"""
+This code contains classes for probability estimation
+using various kinds of smoothing.
+
+The classes generate probability distributions from
+conditional counts stored in a dict of dicts and 
+from a list of vocabulary words. Before calling a
+method to get a probability distribution, be sure to
+update the internal counts using the method
+update_counts().
+"""
+
+__author__ = "Richard Futrell"
+__copyright__ = "Copyright 2012, Richard Futrell"
+__credits__ = []
+__license__ = "Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License: http://creativecommons.org/licenses/by-nc-sa/3.0/"
+__maintainer__ = "Richard Futrell"
+__email__ = "See the author's website"
+
+import numpy as np
 from collections import Counter
 import scipy.sparse as sps
 from scipy.stats import rv_discrete
@@ -9,8 +28,7 @@ class MLE(object):
     """ Maximum Likelihood Estimator
 
     A class for returning MLE probability estimates
-    based on stored occurrence counts.
-    This class is mostly useful for subclassing.
+    based on stored conditional occurrence counts.
 
     Contains a dict of counts and methods prob for
     returning the probability of a word given context,
@@ -91,6 +109,22 @@ class MLE(object):
 
         return self._normalize(self._local_counts(context))
 
+    def probdist_dict(self, context):
+        """ Probability distribution of words after a context.
+
+        Returns a numpy array representing the probability distribution
+        of words after the given tuple context; probabilities in 
+        log2-space. The probability of word w is located in the array
+        at position vocab.index(w).
+        """
+        if type(context) is not tuple:
+            context = tuple(context)
+
+        d = self.probdist(context)
+        return {v : 2**d[i] 
+                for i,v in enumerate(self.vocab)
+                if not np.isinf(d[i])}
+
     def _local_counts(self, context):
         """ Return an array of the counts of words after a context. """
         if type(context) is not tuple:
@@ -102,7 +136,7 @@ class MLE(object):
             localCounts = Counter()
 
         # can this be sped up using sparse matrices?
-        c = array([localCounts[w] for w in self.vocab]) 
+        c = np.array([localCounts[w] for w in self.vocab]) 
         return c
 
     def _normalize(self, distribution):
@@ -198,8 +232,8 @@ class SimilaritySmoothing(MLE):
             context = tuple(context)
 
         distribution = sps.csr_matrix(self._local_counts(context))
-        distribution = dot(distribution,self.params['mat'])
-        return self._normalize(array(distribution.todense())[0,:])
+        distribution = np.dot(distribution,self.params['mat'])
+        return self._normalize(np.array(distribution.todense())[0,:])
 
 class BackoffSmoothing(MLE):
 
@@ -215,11 +249,11 @@ class BackoffSmoothing(MLE):
             return _local_counts(context[1:])
 
         # can this be sped up using sparse matrices?
-        c = array([localCounts[w] for w in self.vocab]) 
+        c = np.array([localCounts[w] for w in self.vocab]) 
         return c
 
 class BackoffSimilaritySmoothing(SimilaritySmoothing,BackoffSmoothing):
-    def placeholder(self): pass
+    pass
 
 class AdaptiveSimilaritySmoothing(SimilaritySmoothing):
     def _set_default_params(self):
@@ -228,10 +262,10 @@ class AdaptiveSimilaritySmoothing(SimilaritySmoothing):
     def _make_similarity_matrix(self, counts):
         counts = self.counts2array(counts).transpose() #matrix with words as rows
         sklpp.normalize(counts,copy=False) #l2 norm
-        return dot(counts,counts.transpose())
+        return np.dot(counts,counts.transpose())
 
     def counts2array(self, counts):
-        return array([
+        return np.array([
             [self.count(counts[ctx],w) 
              for w in self.vocab]
             for ctx in counts 

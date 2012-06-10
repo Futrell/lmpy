@@ -1,7 +1,30 @@
+"""
+This code contains a class for an n-gram language model.
+
+The model is trained using calls to add_text(), then the
+probability of a sentence can be estimated with prob(),
+or a sentence can be generated with generate_string().
+
+The method used for probability estimation (i.e. smoothing)
+should be an object from the probest module. The
+LanguageModel class does not perform any probability 
+estimation on its own. By default, an MLE object is used. 
+When using methods that use a probability distribution, 
+you can pass in a probest object such as 
+smoothing=AdditiveSmoothing() to override the default MLE.
+"""
+
+__author__ = "Richard Futrell"
+__copyright__ = "Copyright 2012, Richard Futrell"
+__credits__ = []
+__license__ = "Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License: http://creativecommons.org/licenses/by-nc-sa/3.0/"
+__maintainer__ = "Richard Futrell"
+__email__ = "See the author's website"
+
+
 #from nltk.tokenize import TreebankWordTokenizer as Tokenizer
 from tok import Tokenizer
 from collections import Counter
-import numpy as np
 
 class LanguageModel:
     """A language model class.
@@ -107,7 +130,7 @@ class LanguageModel:
         prob = 0.0
         if type(text) == str:
             text = self.tk.tokenize(text)
-        text = self.add_delimiters(text)
+        text = self._add_delimiters(text)
         for i in xrange(self.order-1,len(text)):
             word = text[i]
             if word == self.Ender: break
@@ -141,7 +164,7 @@ class LanguageModel:
         return smoothing.prob(word, context)
 
     def probdist(self, context=tuple(), smoothing=None):
-        """Probability of a word after a context.
+        """Probability of words after a context.
         
         Takes a word and context, which can be either a tuple
         or a string. Context is truncated to fit the order of
@@ -157,12 +180,7 @@ class LanguageModel:
         if type(context) == list:
             context = tuple(context)
 
-        d = probEst.probdist(context)
-        return {v : 2**d[i] 
-                for i,v in enumerate(probEst.vocab)
-                if not np.isinf(d[i])}
-
-
+        return probEst.probdist_dict(context)
 
     def add_text(self, text, order=0):
         """Add text to the language model.
@@ -174,14 +192,14 @@ class LanguageModel:
         if order == 0: order = self.order
         if type(text) == str:
             text = self.tk.tokenize(text)
-        text = self.add_delimiters(text,order)
+        text = self._add_delimiters(text,order)
         for o in xrange(1,order+1):
             for i in xrange(len(text)-(o-1)):
                 self.add_gram(text[i:i+o])
         if self.probEst is not None:
             self.probEst.update_counts(self.counts)
 
-    def add_delimiters(self, text, order=0):
+    def _add_delimiters(self, text, order=0):
         """ Add delimiters to a text.
 
         Append the appropriate number of Starter and Ender

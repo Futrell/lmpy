@@ -1,3 +1,19 @@
+"""
+This code contains classes for calculating word similarity.
+
+The classes take a vocabulary list and export similarity() 
+to get word similarity and get_similarity_matrix() to get 
+the whole matrix for all words in the stored vocab.
+"""
+
+__author__ = "Richard Futrell"
+__copyright__ = "Copyright 2012, Richard Futrell"
+__credits__ = []
+__license__ = "Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License: http://creativecommons.org/licenses/by-nc-sa/3.0/"
+__maintainer__ = "Richard Futrell"
+__email__ = "See the author's website"
+
+
 from numpy import *
 import scipy.spatial.distance as spd
 import scipy.sparse as sps
@@ -71,11 +87,11 @@ class DistribSim:
         Returns: A CSR similarity matrix.
         """
 
-        if (vocab==None and ctxList==None and weight==None): 
+        if (not vocab and not ctxList and not weight): 
             return self.matrix
-        if ctxList == None: ctxList = self.ctxList
-        if vocab == None: vocab = self.vocab
-        if weight == None: weight = self.weight
+        if not ctxList: ctxList = self.ctxList
+        if not vocab: vocab = self.vocab
+        if not weight: weight = self.weight
 
         def remove_negatives(x):
             x = sps.coo_matrix(x)
@@ -95,21 +111,27 @@ class DistribSim:
         #m = remove_negatives(m) # might be slow
 
         zeroRows = (m.sum(1)==0).astype(int)
-        toAdd = sps.spdiags(zeroRows.transpose(),0,zeroRows.shape[0],zeroRows.shape[0],format='csr')
+        toAdd = sps.spdiags(zeroRows.transpose(), 0,
+                            zeroRows.shape[0],
+                            zeroRows.shape[0],format='csr')
         m = m + toAdd # deal with OOV sims
 
         return m
 
 class WordnetSim:
-    def __init__(self, vocab, method=None, multithread=False):
+    def __init__(self, vocab=None, method=None, multithread=False):
         self.vocab = vocab
-        self.method = method
-        if self.method == None:
-            self.method = wn.path_similarity
-        self.multithread = multithread
-        self.matrix = self.get_similarity_matrix(vocab,self.method)
+        if not self.vocab: 
+            self.vocab = []
 
-    def similarity(self, w, method=None):
+        self.method = method
+        if not self.method:
+            self.method = wn.path_similarity
+
+        self.multithread = multithread
+        #self.matrix = self.get_similarity_matrix(vocab,self.method)
+
+    def similarity(self, w, w2=None, method=None):
         """ Word similarity.
 
         Returns the Wordnet word similarity of two words 
@@ -118,16 +140,20 @@ class WordnetSim:
         tuple.
         """
         
-        if method==None: method = self.method
-        w1 = w[0]
-        w2 = w[1]
+        if not method: method = self.method
+        if not w2:
+            w1 = w[0]
+            w2 = w[1]
+        else:
+            w1 = w
+
         if not wn.synsets(w1) or not wn.synsets(w2):
             return 0
         if w1==w2: return 0
         sims = [method(s1,s2) for s1 in wn.synsets(w1) 
                 for s2 in wn.synsets(w2)]
         toReturn = max(sims)
-        if toReturn==None: return 0
+        if not toReturn: return 0
         else: return toReturn
   
     def get_similarity_matrix(self, vocab=None, method=None):
