@@ -8,7 +8,6 @@ the whole matrix for all words in the stored vocab.
 
 __author__ = "Richard Futrell"
 __copyright__ = "Copyright 2012, Richard Futrell"
-__credits__ = []
 __license__ = "Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License: http://creativecommons.org/licenses/by-nc-sa/3.0/"
 __maintainer__ = "Richard Futrell"
 __email__ = "See the author's website"
@@ -39,36 +38,57 @@ class DistribSim:
     vectors, which may be weighted by a user-specified weight
     function (from the weighting module).
     """
-    def __init__(self, ctxList, vocab=None, weight=None):
-        self.ctxList = ctxList
+    def __init__(self, contexts, vocab=None, weight=None):
+        self.contexts = contexts
         self.weight = weight
-        if not self.weight: self.weight = lambda x:x
         self.vocab = vocab
-        if not self.vocab: self.vocab = ctxList.get_targets()
-        self.matrix = self.get_similarity_matrix(vocab=vocab,weight=self.weight)
+        if not self.vocab: self.vocab = contexts.get_targets()
+        self.matrix = self.get_similarity_matrix(vocab=vocab, weight=weight, firstRun=True)
 
-    def get_context_matrix(self, vocab=None, ctxList=None):
+    def get_context_matrix(self, vocab=None, weight=None):
         """ Return the context matrix for a given vocab.
 
         Args:
         vocab: An ordered list of words. If a word is not
         in the ContextList, then its context vector is zeros.
-        ctxList: Optionally, a ContextList object which 
-        exports get_sparse_matrix(). If nothing is specified,
-        the class's internal ContextList is used.
+        weight: A weighting function to be used in lieu
+        of the default for this instance.
 
         Returns: A CSR matrix with rows as words and cols as
         contexts.
         """
 
-        if not ctxList: ctxList = self.ctxList
         if not vocab: vocab = self.vocab
-        return ctxList.get_sparse_matrix(targets=vocab) # sparse row matrix
+        if not weight:
+            return self.contexts.get_sparse_matrix(targets=vocab) # sparse row matrix
+        else:
+            return weight(self.contexts.get_sparse_matrix(targets=vocab))
 
     def similarity(self, w1, w2):
         return self.matrix[self.vocab.index(w1),self.vocab.index(w2)]
+
+    def similarities(self, w):
+        vocabIndices = {v : i for i, v in enumerate(self.vocab)}
+        try:
+            return {v : self.matrix[vocabIndices[w], vocabIndices[v]] 
+                    for v in self.vocab}
+        except KeyError:
+            print "%s is not in the vocabulary!" % w
+
+    def most_similar(self, w, n=10):
+        s = self.similarities(w)
+        result = []
+        i = 0
+        for key, value in sorted(s.iteritems(), key=lambda (k,v): (v,k),
+                                 reverse=True):
+            if key != w:
+                result.append((key,value))
+                i += 1
+            if i >= n:
+                break
+        return result
     
-    def get_similarity_matrix(self, vocab=None, ctxList = None, weight = None):
+    def get_similarity_matrix(self, vocab=None, weight=None, firstRun=False):
         """ Return a similarity matrix.
        
         Returns the similarity matrix for words; this is
@@ -80,33 +100,33 @@ class DistribSim:
         Args:
         vocab: Optionally, a list of vocabulary words which 
         will make up the rows/cols of the similarity matrix.
-        ctxList: Optionally, a custom ContextList object.
+        contexts: Optionally, a custom ContextList object.
         weight: Optionally, a weighting function to be applied
         to the counts in the ContextList.
 
         Returns: A CSR similarity matrix.
         """
 
-        if (not vocab and not ctxList and not weight): 
+        if not firstRun or (not vocab and not weight):
             return self.matrix
-        if not ctxList: ctxList = self.ctxList
         if not vocab: vocab = self.vocab
         if not weight: weight = self.weight
 
         def remove_negatives(x):
             x = sps.coo_matrix(x)
-            toRemove = []
-            for i,d in enumerate(x.data):
-                if d <= 0:
-                    toRemove.append(i)
-            x.data = delete(x.data,toRemove)
+            toRemove = [i for i,d in enumerate(x.data)
+                        if d <= 0]
+            x.data = delete(x.data, toRemove)
             x.row = delete(x.row, toRemove)
             x.col = delete(x.col, toRemove)
             x = sps.csr_matrix(x)
             return x
 
-        m = weight(ctxList.get_sparse_matrix(targets=vocab))
-        sklpp.normalize(m,copy=False)
+        if weight:
+            m = weight(self.contexts.get_sparse_matrix(targets=vocab))
+        else:
+            m = self.contexts.get_sparse_matrix(targets=vocab)
+        sklpp.normalize(m, copy=False)
         m = dot(m,m.transpose()) # pairwise cosine similarities
         #m = remove_negatives(m) # might be slow
 

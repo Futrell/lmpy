@@ -18,6 +18,7 @@ __maintainer__ = "Richard Futrell"
 __email__ = "See the author's website"
 
 import numpy as np
+from numpy import log2
 from collections import Counter
 import scipy.sparse as sps
 from scipy.stats import rv_discrete
@@ -153,7 +154,7 @@ class MLE(object):
         else:
             return log2(distribution) - log2(normalizer)
 
-    def generate_word(self, context, vocab=None, sentinel='</S>'):
+    def generate_word(self, context, vocab=None):
         """Generate a single word. 
 
         Sample from the probability distribution of words following
@@ -170,7 +171,7 @@ class MLE(object):
         
         if vocab==None: vocab=self.vocab
         distribution = 2**self.probdist(context)
-        if sum(distribution)==0: return sentinel
+        if sum(distribution)==0: return StopIteration
         words = [tuple(range(len(vocab))),
                  tuple(distribution)]
         distribution = rv_discrete(name='words',values=words)
@@ -255,19 +256,3 @@ class BackoffSmoothing(MLE):
 class BackoffSimilaritySmoothing(SimilaritySmoothing,BackoffSmoothing):
     pass
 
-class AdaptiveSimilaritySmoothing(SimilaritySmoothing):
-    def _set_default_params(self):
-        self.params['mat'] = self._make_similarity_matrix(self.counts)
-
-    def _make_similarity_matrix(self, counts):
-        counts = self.counts2array(counts).transpose() #matrix with words as rows
-        sklpp.normalize(counts,copy=False) #l2 norm
-        return np.dot(counts,counts.transpose())
-
-    def counts2array(self, counts):
-        return np.array([
-            [self.count(counts[ctx],w) 
-             for w in self.vocab]
-            for ctx in counts 
-            if len(ctx)==self.order
-            ])

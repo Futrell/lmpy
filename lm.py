@@ -22,9 +22,10 @@ __maintainer__ = "Richard Futrell"
 __email__ = "See the author's website"
 
 
-#from nltk.tokenize import TreebankWordTokenizer as Tokenizer
+from nltk.tokenize import TreebankWordTokenizer as Tokenizer
 from tok import Tokenizer
 from collections import Counter
+from numpy import log2
 
 class LanguageModel:
     """A language model class.
@@ -88,7 +89,7 @@ class LanguageModel:
         generated.extend([w for w in self.word_generator(prefix, smoothing)])
         return generated
 
-    def word_generator(self, context=None, smoothing=None, vocab=[]):
+    def word_generator(self, context=None, smoothing=None):
         """A generator for words.
    
         This method yields words conditioned on previous
@@ -99,7 +100,7 @@ class LanguageModel:
         """
         if not context: context = []
         probEst = smoothing
-        if probEst == None:
+        if not probEst:
             probEst = self.probEst #MLE() by default
         if type(context)==str:
             context = self.tk.tokenize(context)
@@ -107,11 +108,11 @@ class LanguageModel:
 
         while True:
             context = tuple(generated[-(self.order-1):])
-            word = probEst.generate_word(context,sentinel=self.Ender)
-            while word==self.OOV: #regenerate until no OOV is generated
-                word = probEst.generate_word(context,sentinel=self.Ender)
-            if word==self.Ender or word==self.Starter: break
-
+            word = probEst.generate_word(context)
+            while word == self.OOV: #regenerate until no OOV is generated
+                word = probEst.generate_word(context)
+            if (word == self.Ender or word == self.Starter
+                or word is StopIteration): break
             yield word
             generated.append(word)
 
