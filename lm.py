@@ -21,11 +21,20 @@ __license__ = "Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unporte
 __maintainer__ = "Richard Futrell"
 __email__ = "See the author's website"
 
-
-from nltk.tokenize import TreebankWordTokenizer as Tokenizer
-from tok import Tokenizer
 from collections import Counter
 from numpy import log2
+import codecs
+
+PLAIN_TOKENIZE = lambda x: x.split(' ')
+try:
+    from nltk.tokenize import TreebankWordTokenizer as Tokenizer
+    NLTK_TOKENIZE = Tokenizer().tokenize
+    DEFAULT_TOKENIZE = NLTK_TOKENIZE
+except ImportError:
+    print("Couldn't import NLTK; tokenizing on whitespace alone.")
+    DEFAULT_TOKENIZE = PLAIN_TOKENIZE
+
+
 
 class LanguageModel:
     """A language model class.
@@ -34,19 +43,21 @@ class LanguageModel:
     or assigns probability to strings using the specified
     estimation method, by default MLE.
     """
-    def __init__(self, order=3, smoothing=None):
+    def __init__(self, order=3, smoothing=None, tokenize=None):
         if order < 1:
-            print "Invalid order: " + str(order),
-            print "Defaulting to order 3."
+            print("Invalid order: " + str(order)),
+            print("Defaulting to order 3.")
             self.order = 3
         self.order = order
         self.counts = dict()
-        self.tk = Tokenizer()
+        self.tokenize = tokenize
+        if not self.tokenize:
+            self.tokenize = DEFAULT_TOKENIZE
         self.Starter = '<S>'
         self.Ender = '</S>'
         self.OOV = '!OOV!'
         self.probEst = smoothing # might be None
-        if self.probEst==None:
+        if not self.probEst:
             from probest import MLE
             self.probEst = MLE()
 
@@ -82,7 +93,7 @@ class LanguageModel:
             prefix = []
 
         if type(context)==str:
-            context = self.tk.tokenize(context)
+            context = self.tokenize(context)
         prefix.extend(context)
 
         generated = context # probably []
@@ -103,7 +114,7 @@ class LanguageModel:
         if not probEst:
             probEst = self.probEst #MLE() by default
         if type(context)==str:
-            context = self.tk.tokenize(context)
+            context = self.tokenize(context)
         generated=context
 
         while True:
@@ -130,7 +141,7 @@ class LanguageModel:
         """
         prob = 0.0
         if type(text) == str:
-            text = self.tk.tokenize(text)
+            text = self.tokenize(text)
         text = self._add_delimiters(text)
         for i in xrange(self.order-1,len(text)):
             word = text[i]
@@ -141,8 +152,8 @@ class LanguageModel:
                 context.remove(self.Starter)
 
             if verbose:
-                print 'p(',word,'|',context,') =',
-                print  self.p(word, context, smoothing)
+                print('p(',word,'|',context,') ='),
+                print(self.p(word, context, smoothing))
             prob += self.p(word, context, smoothing)
 
         return prob
@@ -159,7 +170,7 @@ class LanguageModel:
         smoothing.update_counts(self.counts)
 
         if type(context) == str:
-            context = self.tk.tokenize(context)
+            context = self.tokenize(context)
         context = context[-(self.order-1):]
 
         return smoothing.prob(word, context)
@@ -177,7 +188,7 @@ class LanguageModel:
         probEst.update_counts(self.counts)
 
         if type(context) == str:
-            context = tuple(self.tk.tokenize(context))
+            context = tuple(self.tokenize(context))
         if type(context) == list:
             context = tuple(context)
 
@@ -190,11 +201,12 @@ class LanguageModel:
         Text can be either a list of tokens or a string, in
         which case it is tokenized.
         """
-        if order == 0: order = self.order
+        if not order: 
+            order = self.order
         if type(text) == str:
-            text = self.tk.tokenize(text)
-        text = self._add_delimiters(text,order)
-        for o in xrange(1,order+1):
+            text = self.tokenize(text)
+        text = self._add_delimiters(text, order)
+        for o in xrange(1, order+1):
             for i in xrange(len(text)-(o-1)):
                 self.add_gram(text[i:i+o])
         if self.probEst is not None:
@@ -209,7 +221,7 @@ class LanguageModel:
         """
         if order==0: order = self.order
         if type(text) == str:
-            text = self.tok.tokenize(text)
+            text = self.tokenize(text)
         text.insert(0,self.Starter)
         text.append(self.Ender)
         for i in xrange(order-2):
@@ -218,7 +230,7 @@ class LanguageModel:
         return text
 
     def add_gram(self, text):
-        """ Add a single n-gram to the model. 
+        """ Gramifies and adds a string to the model. 
 
         This adds the 1:n-grams from a given string 
         to the counts of the language model, converting
@@ -237,7 +249,7 @@ class LanguageModel:
     def add_text_file(self, infile, order=0):        
         """ Add a text file to the model. """
         if type(infile) == str:
-            infile = open(infile,'r')
+            infile = codecs.open(infile, 'r', encoding='utf-8')
         for line in infile:
             self.add_text(line.strip())
     

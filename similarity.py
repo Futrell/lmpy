@@ -127,14 +127,14 @@ class DistribSim:
         else:
             m = self.contexts.get_sparse_matrix(targets=vocab)
         sklpp.normalize(m, copy=False)
-        m = dot(m,m.transpose()) # pairwise cosine similarities
+        m = dot(m, m.transpose()) # pairwise cosine similarities
         #m = remove_negatives(m) # might be slow
 
-        zeroRows = (m.sum(1)==0).astype(int)
+        zeroRows = (m.sum(1) == 0).astype(int) # rows with sum 0
         toAdd = sps.spdiags(zeroRows.transpose(), 0,
                             zeroRows.shape[0],
-                            zeroRows.shape[0],format='csr')
-        m = m + toAdd # deal with OOV sims
+                            zeroRows.shape[0], format='csr')
+        m = m + toAdd # deal with OOV sims by adding 1 on the diagonals
 
         return m
 

@@ -11,27 +11,9 @@ with specified parameters, builds a ContextList for that
 corpus. 
 
 Classes:
-1. ContextList: Contains the contexts for a set of target
+ContextList: Contains the contexts for a set of target
 words. Read in a corpus with process_corpus and get 
 contextual vectors with get_vector or get_matrix.
-
-2. ContextParser: A class for converting a line of a corpus
-containing a target word into a representation of the 
-contexts for the target word in that line. Subclasses:
-
-2a1. BagParser: Processes raw text into a bag-of-words
-representation.
-
-2a2. PositionalParser: Processes raw text into a bag-of-words
-with context words marked for their position relative to
-the target word.
-
-2a3. NGramParser: Processes n-grams with counts into a 
-bag of words with appropriate counts. To include positional
-information, use PositionalNGramParser.
-
-2b. DepsParser: Processes a dependency-parsed corpus into
-features including grammatical relation.
 """
 
 __author__ = "Richard Futrell"
@@ -43,189 +25,10 @@ __email__ = "See the author's website"
 import sys, fileinput, gzip
 import re
 from collections import Counter, defaultdict, OrderedDict
+from defaultordereddict import DefaultOrderedDict
+import contextparsers as ctxparse
 
-DEFAULT_LEMMATIZE = lambda x: x
-DEFAULT_CONTEXT_TYPE_STRING = 'TBA'
-
-class Context(object):
-    def __init__(self, word):
-        self.word = word
-
-    def __repr__(self):
-        return str(self.__dict__)
-
-class DependencyContext(object):
-    def __init__(self, word, relation, position):
-        self.word = word
-        self.relation = relation
-        self.position = position
-
-class PositionalContext(object):
-    def __init__(self, word, position):
-        self.word = word
-        self.position = position
-
-
-class ContextParser(object):
-    """ A context parser.
-
-    Contains methods for parsing a line into context features.
-    A feature is a tuple whose first element is the wordform
-    (or n-gram) and whose following elements have to do with
-    its relations and/or position.
-    """
-    contextType = 'context'
-
-    def __init__(self, lemmatize=DEFAULT_LEMMATIZE, boundaries=False, 
-                 **kwargs):
-        try:
-            import nltk.tokenize.treebank as tb
-            self.tokenize = tb.TreebankWordTokenizer().tokenize
-        except ImportError:
-            print "Could not import NLTK tokenizer. Tokenizing on space instead"
-            self.tokenize = lambda x : x.split(" ")
-        self.lemmatize = lemmatize
-        self.boundaries = boundaries
-        if 'preLemmatized' in kwargs:
-            def get_lemma(x):
-                x = x.split(kwargs['preLemmatized'])
-                return x[-1]
-            def get_lemmata(xs):
-                return [get_lemma(x) for x in xs]
-            self.lemmatize = get_lemmata
-
-
-        self._set_parameters(**kwargs)
-    
-    def _set_parameters(self, **kwargs): pass
-    
-    def parse(self, target, line):
-        for word in line:
-            yield (word,)
-
-    def preprocess(self, line): 
-        if self.boundaries:
-            line.insert(0,'<S>')
-            line.append('</S>')
-        return line.lower()
-
-    def get_count(self, line):
-        return 1
-
-class DepsParser(ContextParser):
-    contextType = 'dependency-parsed context'
-
-    def __init__(self, lemmatize=DEFAULT_LEMMATIZE, **kwargs):
-        self.tokenize = lambda x : x.split(" ")
-        self.lemmatize = lemmatize
-        if 'preLemmatized' in kwargs:
-            preLemmatized = kwargs['preLemmatized']
-            if preLemmatized:
-                def get_lemma(x):
-                    x = x.split(preLemmatized)
-                    return x[-1]
-                def get_lemmata(xs):
-                    return [get_lemma(x) for x in xs]
-                self.lemmatize = get_lemmata
-        self._set_parameters(**kwargs)
-        self._initialize_regexes()
-
-    def _set_parameters(self, **kwargs):
-        if 'limitingRels' in kwargs:
-            self.limitingRels = frozenset(kwargs['limitingRels'])
-        else: self.limitingRels = None
-        
-    def _initialize_regexes(self):
-        self.XMLMatcher = re.compile("</?D>")
-        self.wordNumMatcher = re.compile("-[0-9]+")
-        self.parenthesisMatcher = re.compile("[\()]")
-        self.commaMatcher = re.compile(", ")
-    
-    def preprocess(self, line):
-        line = re.sub(self.XMLMatcher,"",line)
-        line = re.sub(self.parenthesisMatcher," ",line)
-        line = re.sub(self.commaMatcher," ",line)
-        line = re.sub("VB[ZNDPG]-","VB-",line)
-        line = re.sub("NNS-","NN-",line)
-        line = re.sub(self.wordNumMatcher,"",line)
-        # Resulting line:
-        #    xcomp ready|ready#JJ to|to#TO
-        return line.lower().strip()
-
-    def parse(self, target, line):
-        rel = line[0]
-        if not self.limitingRels or rel in self.limitingRels:
-            line = line[1:]
-            line = self.lemmatize(line)
-            for pos, word in enumerate(line):
-                if not pos+1==target:
-                    yield DependencyContext(word, rel, pos+1)
-
-
-class BagParser(ContextParser):
-    contextType = 'bag-of-words context'
-
-    def _set_parameters(self, **kwargs):
-        if 'windowSize' in kwargs:
-            self.windowSize = kwargs['windowSize']
-        else: self.windowSize = 3
-
-        if 'prefix' in kwargs:
-            self.prefix = kwargs['prefix']
-        else: self.prefix = True
-
-        if 'suffix' in kwargs:
-            self.suffix = kwargs['suffix']
-        else: self.suffix = True
-
-    def parse(self, target, line):
-        if self.prefix:
-            pre = max(0,target-self.windowSize)
-        else: 
-            pre = target
-
-        if self.suffix:
-            post = min(len(line),target+self.windowSize+1)
-        else:
-            post = target
-
-        line = self.lemmatize(line)
-        return self._parse_line(target, line, range(pre, post))
-
-    def _parse_line(self, target, line, indices):
-        for i in indices:
-            if not i==target:
-                yield Context(line[i])
-
-
-class PositionalParser(BagParser):
-    contextType = 'positional context'
-
-    def _parse_line(self, target, line, indices):
-        for i in indices:
-            if not i==target:
-                pos = i-target
-                yield PositionalContext(line[i], pos)
-
-class NGramParser(BagParser):
-    def get_count(self, line):
-        return int(line.split("\t")[-1])
-    
-    def preprocess(self, line):
-        line = line.split("\t")[0]
-        return line.lower()
-
-    def parse(self, target, line):
-        if (self.suffix and target == 0) or (self.prefix 
-                                             and target == len(line)-1):
-            line = self.lemmatize(line)
-            return self._parse_line(target, line, range(0, len(line)))
-
-class PositionalNGramParser(NGramParser, PositionalParser):
-    pass
-       
-
-DEFAULT_CONTEXT_PARSER = PositionalParser()
+DEFAULT_CONTEXT_PARSER = ctxparse.PositionalParser()
 
 class ContextList(object):
     """ ContextList class.
@@ -248,7 +51,7 @@ class ContextList(object):
         self.contextCount = defaultdict(Counter)
         self._set_targets(targets)
         self._set_vocab(vocab)
-        self.contextType = DEFAULT_CONTEXT_TYPE_STRING
+        self.contextType = None
 
         if corpus: 
             self.process_corpus(corpus)
@@ -256,15 +59,12 @@ class ContextList(object):
     def __contains__(self, item):
         return item in self.contextCount
 
-    def __repr__(self):
-        return 
-
     def _set_targets(self, targets):
-        self.targets = OrderedDict() # dict of words -> indices
+        self.targets = OrderedDict() # an ordered set (dict -> True)
         self.limitingTargets = frozenset([t.strip() for t in targets])
 
     def _set_vocab(self, vocab):
-        self.vocab = OrderedDict() # dict of context objects -> indices
+        self.vocab = OrderedDict() # an ordered set
         self.limitingVocab = frozenset([v.strip() for v in vocab])
 
     def _add_to_targets(self, target):
@@ -273,11 +73,11 @@ class ContextList(object):
     def _add_to_vocab(self, vocabItem):
         self.vocab[vocabItem] = True
 
-    def contexts_to_vector(self, word, contexts, vocab=None):
+    def contexts_to_vector(self, contexts, vocab=None):
         if not vocab:
             vocab = self.vocab
-        contextCounters = Counter(contexts)
-        return [contextCounters[target][c] for c in vocab]
+        contextCounter = Counter(c)
+        return [contextCounter[c] for c in vocab]
 
     def add_context(self, target, contextItem, count=1):
         """Add a context item for a target. 
@@ -286,24 +86,21 @@ class ContextList(object):
         limitingVocab contains the relevant word.
         """
 
-        # if the ctx item has already been observed for this target, increment it
-        if contextItem in self.contextCount[target]:
+        if not self.limitingVocab or contextItem.word in self.limitingVocab:
             self.contextCount[target][contextItem] += count
-        else:
-            # add to counts if it's in the vocab words, or if vocab isn't fixed
-            if not self.limitingVocab or contextItem.word in self.limitingVocab:
-                self.contextCount[target][contextItem] = count
+            if contextItem not in self.vocab:
                 self._add_to_vocab(contextItem)
 
     def process_corpus(self, corpusFile=None, parser=DEFAULT_CONTEXT_PARSER):
         if not corpusFile: 
             corpusFile = sys.stdin
 
-        if self.contextType == DEFAULT_CONTEXT_TYPE_STRING:
+        if not self.contextType:
             self.contextType = parser.contextType
-        elif self.contextType != parser.contextType:
-            print 'Warning! Old contexts used %s, new ones use %s!' % (self.contextType, parser.contextType)
-            self.contextType += '& %s' % parser.contextType
+        elif parser.contextType != self.contextType:
+            print('Warning! Old contexts used %s, new ones use %s!' 
+                % (self.contextType, parser.contextType))
+            
 
         while True:
             try:
@@ -313,12 +110,12 @@ class ContextList(object):
             if line == '':
                 break
 
-            count = parser.get_count(line)
-            line = parser.preprocess(line)
+            count = parser.get_count(line) # 1 unless data is ngrams
+            line = parser.preprocess(line) # get rid of XML and junk
             words = parser.tokenize(line)
             for targetPos, target in enumerate(words):
                 if not self.limitingTargets or target in self.limitingTargets: 
-                    if not target in self.contextCount:
+                    if not target in self.targets:
                         self._add_to_targets(target)
                     for contextItem in parser.parse(targetPos, words):
                         self.add_context(target, contextItem, count)
