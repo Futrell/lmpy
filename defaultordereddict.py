@@ -1,3 +1,6 @@
+""" Code by zeekay from StackOverflow: 
+http://stackoverflow.com/questions/6190331/can-i-do-an-ordered-default-dict-in-python
+"""
 from collections import OrderedDict, Callable
 
 class DefaultOrderedDict(OrderedDict):

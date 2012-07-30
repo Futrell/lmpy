@@ -73,7 +73,7 @@ class DistribSim:
             return {v : self.matrix[vocabIndices[w], vocabIndices[v]] 
                     for v in self.vocab}
         except KeyError:
-            print "%s is not in the vocabulary!" % w
+            print("%s is not in the vocabulary!" % w)
 
     def most_similar(self, w, n=10):
         s = self.similarities(w)

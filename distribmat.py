@@ -98,9 +98,8 @@ class ContextList(object):
         if not self.contextType:
             self.contextType = parser.contextType
         elif parser.contextType != self.contextType:
-            print('Warning! Old contexts used %s, new ones use %s!' 
+            print('Warning! Old contexts were %s, new ones are %s!' 
                 % (self.contextType, parser.contextType))
-            
 
         while True:
             try:
@@ -122,9 +121,9 @@ class ContextList(object):
 
     def print_all(self):
         for target in self.contextCount:
-            print target + " = "
+            print(target + " = ")
             for context in self.contextCount[target]:
-                print context + ":" + str(self.contextCount[target][context]) + ","
+                print(context + ":" + str(self.contextCount[target][context]) + ",")
 
     def get_targets(self):
         return self.targets.keys()
@@ -200,7 +199,7 @@ class ContextList(object):
                 shape=(len(targets),len(vocab)),dtype="float")
             return csr_matrix(m)
         except ImportError:
-            print "Could not import scipy; returning parameters for a coo_matrix"
+            print("Could not import scipy; returning parameters for a coo_matrix")
             return cooMatrixParameters
     
         
@@ -208,12 +207,12 @@ class ContextList(object):
         rowsFile = open(filename+'_rows','r')
         targets = rowsFile.readline().strip(",").split(",")
         rowsFile.close()
-        print "Loaded rows"
+        print("Loaded rows")
 
         colsFile = open(filename+'_cols','r')
         vocab = colsFile.readline().strip(",").split(",")
         colsFile.close()
-        print "Loaded columns"
+        print("Loaded columns")
 
         self.contextCount = defaultdict(Counter) #TODO: make ordered dict
         matFile = gzip.open(filename+'_mat.gz','r')
@@ -224,17 +223,17 @@ class ContextList(object):
                     self.contextCount[targets[lineNum]][vocab[i]] = v
                   
         matFile.close()
-        print "Loaded matrix"
+        print("Loaded matrix")
         
         self._set_targets(targets)
         self._set_vocab(vocab)
-        print "Set internal parameters."
+        print("Set internal parameters.")
 
 
 def _lines_as_list(filename):
     if filename:
         infile = open(args.t,'r')
-        lines = [x.strip() for x in infile.readlines()]
+        lines = [x.strip() for x in infile]
         infile.close()
     else:
         lines = []

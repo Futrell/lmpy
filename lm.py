@@ -25,14 +25,12 @@ from collections import Counter
 from numpy import log2
 import codecs
 
-PLAIN_TOKENIZE = lambda x: x.split(' ')
 try:
     from nltk.tokenize import TreebankWordTokenizer as Tokenizer
-    NLTK_TOKENIZE = Tokenizer().tokenize
-    DEFAULT_TOKENIZE = NLTK_TOKENIZE
+    DEFAULT_TOKENIZE = Tokenizer().tokenize
 except ImportError:
     print("Couldn't import NLTK; tokenizing on whitespace alone.")
-    DEFAULT_TOKENIZE = PLAIN_TOKENIZE
+    DEFAULT_TOKENIZE = lambda x: x.split(' ')
 
 
 
@@ -61,7 +59,7 @@ class LanguageModel:
             from probest import MLE
             self.probEst = MLE()
 
-    def generate_string(self, context='',smoothing=None):
+    def generate_string(self, context='', smoothing=None):
         """Generate a string.
         
         Generate a string starting with specified prefix context
@@ -92,7 +90,7 @@ class LanguageModel:
         else:
             prefix = []
 
-        if type(context)==str:
+        if type(context) == str or type(context) == unicode:
             context = self.tokenize(context)
         prefix.extend(context)
 
@@ -113,7 +111,7 @@ class LanguageModel:
         probEst = smoothing
         if not probEst:
             probEst = self.probEst #MLE() by default
-        if type(context)==str:
+        if type(context)==str or type(context)==unicode:
             context = self.tokenize(context)
         generated=context
 
@@ -140,12 +138,13 @@ class LanguageModel:
         Set verbose=True to see all transitional probabilities.
         """
         prob = 0.0
-        if type(text) == str:
+        if type(text) == str or type(text) == unicode:
             text = self.tokenize(text)
         text = self._add_delimiters(text)
         for i in xrange(self.order-1,len(text)):
             word = text[i]
-            if word == self.Ender: break
+            if word == self.Ender: 
+                break
             
             context = text[(i-(self.order-1)):i]
             while self.Starter in context:
@@ -169,7 +168,7 @@ class LanguageModel:
             smoothing = self.probEst
         smoothing.update_counts(self.counts)
 
-        if type(context) == str:
+        if type(context) == str or type(context) == unicode:
             context = self.tokenize(context)
         context = context[-(self.order-1):]
 
@@ -187,7 +186,7 @@ class LanguageModel:
             probEst = self.probEst
         probEst.update_counts(self.counts)
 
-        if type(context) == str:
+        if type(context) == str or type(context) == unicode:
             context = tuple(self.tokenize(context))
         if type(context) == list:
             context = tuple(context)
@@ -203,8 +202,8 @@ class LanguageModel:
         """
         if not order: 
             order = self.order
-        if type(text) == str:
-            text = self.tokenize(text)
+
+        text = self.tokenize(text)
         text = self._add_delimiters(text, order)
         for o in xrange(1, order+1):
             for i in xrange(len(text)-(o-1)):
@@ -220,7 +219,7 @@ class LanguageModel:
         or of a string.
         """
         if order==0: order = self.order
-        if type(text) == str:
+        if type(text) == str or type(text) == unicode:
             text = self.tokenize(text)
         text.insert(0,self.Starter)
         text.append(self.Ender)
@@ -230,13 +229,13 @@ class LanguageModel:
         return text
 
     def add_gram(self, text):
-        """ Gramifies and adds a string to the model. 
+        """ Gramifies and adds a tokenized string to the model. 
 
         This adds the 1:n-grams from a given string 
         to the counts of the language model, converting
         each of those lists to tuples.
         """
-        if text == []:
+        if not text:
             return
         context = tuple(text[:-1])
         word = text[-1:][0]
@@ -246,12 +245,12 @@ class LanguageModel:
             self.counts[context][word] += 1
         #print "Added gram:",context,":",word
         
-    def add_text_file(self, infile, order=0):        
+    def add_text_file(self, filename, order=0):        
         """ Add a text file to the model. """
-        if type(infile) == str:
-            infile = codecs.open(infile, 'r', encoding='utf-8')
+        infile = codecs.open(filename, 'r', encoding='utf-8')
         for line in infile:
             self.add_text(line.strip())
+        infile.close()
     
     def get_vocab(self):
         """ Return the possible words, plus the OOV word."""

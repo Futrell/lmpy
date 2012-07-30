@@ -11,34 +11,51 @@ import contexttypes as ctxtypes
 DEFAULT_CONTEXT_TYPE = ctxtypes.Context
 
 class Typicality(object):
-	def __init__(self, bgCtx=None, weight=None):
+	def __init__(self, bgCtx, fgCorpusFilename=None, weight=None):
 		self.bgCtx = bgCtx
+		
+		if fgCorpusFilename:
+			infile = open(fgCorpusFilename, 'r')
+			self.fgCorpus = [line.strip() for line in infile]
+			infile.close()
+		else:
+			self.fgCorpus = None
+
+		self.weight = weight
 
 	def typicality(self, word, sentence, bgVector=None):
 		ctxtype = self.bgCtx.contextType
-		parser = ctxtype.defaultParser
+		parser = ctxtypes.defaultParser
 
 		if not bgVector:
 			bgVector = np.array(self.bgCtx.get_vector(word))
 
-		contexts = parser(sentence.index(word), sentence)
-		fgVector = np.array(self.bgCtx.contexts_to_vector(sentence))
+		contexts = [c for c in parser(sentence.index(word), sentence)]
+		fgVector = np.array(self.bgCtx.contexts_to_vector(contexts))
 		return _cosine_similarity(fgVector, bgVector)
 
-	def typicalities(self, word, sentences):
-		bgVector = np.array(self.bgCtx.get_vector(word))
+	def typicalities(self, word, sentences, bgVector=None):
+		if not bgVector:
+			bgVector = np.array(self.bgCtx.get_vector(word))
 
-	def most_typical_sentences(self, word, sentences, n=5):
-		return _Xst_typical_sentences(word, sentences, n, reverse=True)
+		return [(self.typicality(word, s, bgVector=bgVector), s) 
+				for s in sentences]
 
-	def least_typical_sentences(self, word, sentences, n=5):
-		return _Xst_typical_sentences(word, sentences, n, reverse=False)
+	def most_typical_sentences(self, word, corpus=None, n=5):
+		if not corpus:
+			corpus = self.fgCorpus
+		return _Xst_typical_sentences(word, corpus, n, reverse=True)
 
-	def _Xst_typical_sentences(self, word, sentences, n, reverse):
-		typicalities = sorted(typicalities(word, sentences), reverse=reverse)
+	def least_typical_sentences(self, word, corpus=None, n=5):
+		if not corpus:
+			corpus = self.fgCorpus
+		return _Xst_typical_sentences(word, corpus, n, reverse=False)
+
+	def _Xst_typical_sentences(self, word, corpus, n, reverse):
+		typicalities = sorted(typicalities(word, self.fgCorpus), reverse=reverse)
 		return typicalities[-n:]
 
-	def _cosine_similarity(vectorOne, vectorTwo):
-		sklpp.normalize(vectorOne, copy=False)
-		sklpp.normalize(vectorTwo, copy=False)
-		return np.dot(vectorOne, vectorTwo)
+	def _cosine_similarity(one, two):
+		sklpp.normalize(one, copy=False)
+		sklpp.normalize(two, copy=False)
+		return np.dot(one, two)
